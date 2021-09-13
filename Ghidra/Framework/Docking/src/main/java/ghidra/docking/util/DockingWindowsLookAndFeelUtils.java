@@ -30,6 +30,9 @@ import ghidra.framework.Platform;
 import ghidra.framework.preferences.Preferences;
 import ghidra.util.*;
 
+import com.bulenkov.darcula.DarculaLaf;
+import javax.swing.plaf.basic.BasicLookAndFeel;
+
 /**
  * A utility class to manage LookAndFeel (LaF) settings.
  */
@@ -160,6 +163,8 @@ public class DockingWindowsLookAndFeelUtils {
 		String lookAndFeelClassName = findLookAndFeelClassName(lookAndFeelName);
 		UIManager.setLookAndFeel(lookAndFeelClassName);
 		fixupLookAndFeelIssues();
+        BasicLoogAndFeel darcula = new DarculaLaf();
+        UIManager.setLookAndFeel(darcula);
 	}
 
 	private static String findLookAndFeelClassName(String lookAndFeelName) {
