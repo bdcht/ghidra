@@ -29,7 +29,7 @@ import docking.DockingWindowManager;
  * initialization is complete, the splash screen is dismissed. 
  */
 public class AboutDialog extends DialogComponentProvider {
-	private static final Color DEFAULT_BACKGROUND_COLOR = new Color(243, 250, 255);
+	private static final Color DEFAULT_BACKGROUND_COLOR = new Color(0x2b, 0x2b, 0x2b);
 
 	public AboutDialog() {
 		super(ApplicationInformationDisplayFactory.createAboutTitle(), true, false, true, false);

@@ -37,7 +37,7 @@ import utility.application.ApplicationLayout;
  */
 public class SplashScreen extends JWindow {
 
-	private static final Color DEFAULT_BACKGROUND_COLOR = new Color(243, 250, 255);
+	private static final Color DEFAULT_BACKGROUND_COLOR = new Color(0x2b, 0x2b, 0x2b);
 
 	private static SplashScreen splashWindow; // splash window displayed while ghidra is coming up
 	private static DockingFrame hiddenFrame;
