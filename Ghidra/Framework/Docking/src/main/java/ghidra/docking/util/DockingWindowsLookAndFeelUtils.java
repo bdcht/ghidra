@@ -163,7 +163,7 @@ public class DockingWindowsLookAndFeelUtils {
 		String lookAndFeelClassName = findLookAndFeelClassName(lookAndFeelName);
 		UIManager.setLookAndFeel(lookAndFeelClassName);
 		fixupLookAndFeelIssues();
-        BasicLoogAndFeel darcula = new DarculaLaf();
+        BasicLookAndFeel darcula = new DarculaLaf();
         UIManager.setLookAndFeel(darcula);
 	}
 
