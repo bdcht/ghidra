@@ -41,7 +41,7 @@ import utilities.util.FileUtilities;
  */
 class InfoPanel extends JPanel {
 
-	private final static Color RED = new Color(199, 0, 0);
+	private final static Color RED = new Color(139, 0, 0);
 
 	private final static int MARGIN = 10;
 
@@ -58,7 +58,7 @@ class InfoPanel extends JPanel {
 
 	InfoPanel() {
 		getAboutInfo();
-		bgColor = new Color(243, 250, 255);
+		bgColor = new Color(0x2f, 0x2f, 0x2f);
 		create();
 	}
 
