@@ -15,8 +15,9 @@
  */
 package ghidra;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
+import java.net.URL;
+import java.net.URLDecoder;
 import java.util.*;
 
 import generic.jar.ResourceFile;
@@ -49,8 +50,10 @@ public class GhidraJarApplicationLayout extends GhidraApplicationLayout {
 	@Override
 	protected Collection<ResourceFile> findGhidraApplicationRootDirs() {
 		List<ResourceFile> dirs = new ArrayList<>();
-		dirs.add(new ResourceFile(ApplicationLayout.class.getResource("/_Root/Ghidra/" +
-			ApplicationProperties.PROPERTY_FILE).toExternalForm()).getParentFile());
+		String appPropPath = "/_Root/Ghidra/" + ApplicationProperties.PROPERTY_FILE;
+		URL appPropUrl = ApplicationLayout.class.getResource(appPropPath);
+		ResourceFile rootDir = fromUrl(appPropUrl).getParentFile();
+		dirs.add(rootDir);
 		return dirs;
 	}
 
@@ -76,8 +79,29 @@ public class GhidraJarApplicationLayout extends GhidraApplicationLayout {
 
 	@Override
 	protected List<ResourceFile> findExtensionInstallationDirectories() {
-		ResourceFile extensionInstallDir = new ResourceFile(
-			ApplicationLayout.class.getResource("/_Root/Ghidra/Extensions").toExternalForm());
+		URL extensionInstallUrl = ApplicationLayout.class.getResource("/_Root/Ghidra/Extensions");
+		ResourceFile extensionInstallDir = fromUrl(extensionInstallUrl);
 		return Collections.singletonList(extensionInstallDir);
+	}
+
+	/**
+	 * Gets a {@link ResourceFile} from a {@link URL}
+	 * 
+	 * @param url The {@link URL}
+	 * @return A {@link ResourceFile} from the given {@link URL}
+	 */
+	private ResourceFile fromUrl(URL url) {
+		String urlString = url.toExternalForm();
+		try {
+			// Decode the URL to replace things like %20 with real spaces.
+			// Note: can't use URLDecoder.decode(String, Charset) because Utility must be 
+			// Java 1.8 compatible.
+			urlString = URLDecoder.decode(urlString, "UTF-8");
+		}
+		catch (UnsupportedEncodingException e) {
+			// Shouldn't happen, but failed to find UTF-8 encoding.
+			// Proceed without decoding, and hope for the best.
+		}
+		return new ResourceFile(urlString);
 	}
 }

@@ -61,7 +61,7 @@ public class DebuggerTracePcodeEmulator extends TracePcodeEmulator {
 	protected BytesPcodeThread createThread(String name) {
 		BytesPcodeThread thread = super.createThread(name);
 		Register contextreg = language.getContextBaseRegister();
-		if (contextreg != null && !isRegisterKnown(name, contextreg)) {
+		if (contextreg != Register.NO_CONTEXT && !isRegisterKnown(name, contextreg)) {
 			RegisterValue context = trace.getRegisterContextManager()
 					.getValueWithDefault(language, contextreg, snap, thread.getCounter());
 			thread.overrideContext(context);
@@ -70,13 +70,12 @@ public class DebuggerTracePcodeEmulator extends TracePcodeEmulator {
 	}
 
 	@Override
-	protected PcodeExecutorState<byte[]> createMemoryState() {
-		return new ReadsTargetMemoryPcodeExecutorState(tool, trace, snap, null, 0,
-			recorder);
+	protected PcodeExecutorState<byte[]> createSharedState() {
+		return new ReadsTargetMemoryPcodeExecutorState(tool, trace, snap, null, 0, recorder);
 	}
 
 	@Override
-	protected PcodeExecutorState<byte[]> createRegisterState(PcodeThread<byte[]> emuThread) {
+	protected PcodeExecutorState<byte[]> createLocalState(PcodeThread<byte[]> emuThread) {
 		TraceThread traceThread =
 			trace.getThreadManager().getLiveThreadByPath(snap, emuThread.getName());
 		return new ReadsTargetRegistersPcodeExecutorState(tool, trace, snap, traceThread, 0,

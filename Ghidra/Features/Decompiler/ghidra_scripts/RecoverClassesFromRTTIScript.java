@@ -35,18 +35,20 @@
 // this script and default vfunctions named by this script are likely to change in the future 
 // once an official design for Object Oriented representation is determined.  
 // NOTE: Windows class recovery is more complete and tested than gcc class recovery, which is still 
-// in early stages of development. Gcc class data types have not been recovered yet but if the program
-// has DWARF, there will be some amount of data recovered by the DWARF analyzer in the DWARF data folder.
+// in early stages of development. Gcc class data types are only recovered for classes without multiple or
+// virtual inheritance but if the program contains DWARF, there will be some amount of data recovered 
+// by the DWARF analyzer.
 // NOTE: For likely the best results, run this script on freshly analyzed programs. No testing has been 
 // done on user marked-up programs. 
 // NOTE: After running this script if you edit function signatures in the listing for a particular
-// class and wish to update the corresponding class data (function definition data types, vftable 
+// class and wish to update the corresponding class data function definition data types (vftable 
 // structure field names, ...) then you can run the ApplyClassFunctionSignatureUpdatesScript.java 
-// to have it do so for you.
+// to have it do so for you. See that script's description for more info.
 // Conversely, if you update a particular class's function definitions in the data type manager and  
 // wish to have related function signatures in the listing updated, as well as other data types that 
-// are related, then run the ApplyClassFunctionDefinitionsUpdatesScript.java to do so. At some point, 
-// the Ghidra API will be updated to do this all automatically instead of needing the scripts to do so. 
+// are related, then run the ApplyClassFunctionDefinitionsUpdatesScript.java to do so. See that script's
+// description for more info. At some point, the Ghidra API will be updated to do the updates 
+// automatically instead of needing the mentioned scripts to do so. 
 
 //@category C++
 
@@ -61,13 +63,15 @@ import ghidra.app.plugin.core.analysis.DecompilerFunctionAnalyzer;
 import ghidra.app.script.GhidraScript;
 import ghidra.app.services.Analyzer;
 import ghidra.app.services.GraphDisplayBroker;
+import ghidra.app.util.bin.format.dwarf4.next.DWARFFunctionImporter;
+import ghidra.app.util.bin.format.dwarf4.next.DWARFProgram;
+import ghidra.app.util.bin.format.pdb.PdbParserConstants;
 import ghidra.app.util.importer.MessageLog;
 import ghidra.framework.options.Options;
 import ghidra.framework.plugintool.PluginTool;
 import ghidra.program.model.address.*;
 import ghidra.program.model.data.*;
-import ghidra.program.model.listing.Function;
-import ghidra.program.model.listing.Parameter;
+import ghidra.program.model.listing.*;
 import ghidra.program.model.mem.MemoryBlock;
 import ghidra.service.graph.*;
 import ghidra.util.exception.CancelledException;
@@ -117,6 +121,12 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 	// show shortened class template names in class structure field names
 	private static final boolean USE_SHORT_TEMPLATE_NAMES_IN_STRUCTURE_FIELDS = true;
 
+	// replace defined existing class structures (ie pdb, fid, demangler, or other)with ones created by 
+	// this script and rename the existing ones with a _REPLACED suffix
+	// NOTE: currently does not replace DWARF
+	// NEW OPTION:
+	private static final boolean REPLACE_EXISTING_CLASS_STRUCTURES = true;
+
 	private static final String CLASS_DATA_STRUCT_NAME = "_data";
 
 	private static final String CONSTRUCTOR_BOOKMARK = "CONSTRUCTOR";
@@ -124,8 +134,26 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 
 	private static final String INDETERMINATE_BOOKMARK = "INDETERMINATE";
 
+	// If replacedClassStructuresOption is set to the following, no replaced structures will be removed
+	// from the data type manager
+	private static final int DO_NOT_REMOVE_REPLACED_CLASS_STRUCTURES = 0;
+
+	// If replacedClassStructuresOption is set to the following, only empty existing class structures 
+	// that were replaced by this script will be removed from the data type manager 
+	private static final int REMOVE_EMPTY_REPLACED_CLASS_STRUCTURES = 1;
+
+	// If replacedClassStructuresOption is set to the following, all existing class structures that 
+	// were replaced by this script, including non-emtpy ones, will be removed from the data type 
+	// manager 
+	private static final int REMOVE_ALL_REPLACED_CLASS_STRUCTURES = 2;
+
+	// NEW OPTION - 
+	// This option allows the user to decide whether and how to remove replaced existing class structures
+	// using one of the above three flags
+	int replacedClassStructuresOption = DO_NOT_REMOVE_REPLACED_CLASS_STRUCTURES;
+
 	boolean programHasRTTIApplied = false;
-	boolean isPDBLoaded;
+	boolean hasDebugSymbols;
 	boolean isGcc = false;
 	boolean isWindows = false;
 	String ghidraVersion = null;
@@ -152,18 +180,35 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 
 
 		if (isWindows()) {
-			isPDBLoaded = isPDBLoadedInProgram();
-			nameVfunctions = !isPDBLoaded;
+
+			hasDebugSymbols = isPDBLoadedInProgram();
+			nameVfunctions = !hasDebugSymbols;
 			recoverClassesFromRTTI = new RTTIWindowsClassRecoverer(currentProgram,
 				currentLocation, state.getTool(), this, BOOKMARK_FOUND_FUNCTIONS,
-				USE_SHORT_TEMPLATE_NAMES_IN_STRUCTURE_FIELDS, nameVfunctions, isPDBLoaded, monitor);
+				USE_SHORT_TEMPLATE_NAMES_IN_STRUCTURE_FIELDS, nameVfunctions, hasDebugSymbols,
+				REPLACE_EXISTING_CLASS_STRUCTURES,
+				monitor);
 		}
 		else if (isGcc()) {
-			// for now assume gcc has named vfunctions until a way to check is developed
-			nameVfunctions = true;
+
+			boolean runGcc = askYesNo("GCC Class Recovery Still Under Development",
+				"I understand that gcc class recovery is still under development and my results will be incomplete but want to run this anyway.");
+			if (!runGcc) {
+				return;
+			}
+
+			hasDebugSymbols = isDwarfLoadedInProgram();
+			if (hasDwarf() && !hasDebugSymbols) {
+				println(
+					"The program contains DWARF but the DWARF analyzer has not been run. Please run the DWARF analyzer to get best results from this script.");
+				return;
+			}
+			nameVfunctions = !hasDebugSymbols;
 			recoverClassesFromRTTI = new RTTIGccClassRecoverer(currentProgram, currentLocation,
 				state.getTool(), this, BOOKMARK_FOUND_FUNCTIONS,
-				USE_SHORT_TEMPLATE_NAMES_IN_STRUCTURE_FIELDS, nameVfunctions, monitor);
+				USE_SHORT_TEMPLATE_NAMES_IN_STRUCTURE_FIELDS, nameVfunctions, hasDebugSymbols,
+				REPLACE_EXISTING_CLASS_STRUCTURES,
+				monitor);
 		}
 		else {
 			println("This script will not work on this program type");
@@ -176,7 +221,6 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 			return;
 		}
 
-		// possibly more picky subtype than just checking windows/gcc
 		if (!recoverClassesFromRTTI.isValidProgramType()) {
 			println("This script will not work on this program type");
 			return;
@@ -238,7 +282,7 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 			" class member functions to assign.");
 
 
-		if (!isPDBLoaded) {
+		if (!hasDebugSymbols) {
 
 			if (BOOKMARK_FOUND_FUNCTIONS) {
 				bookmarkFunctions(recoveredClasses);
@@ -257,8 +301,23 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 			showGraph(graph);
 		}
 
+		if (replacedClassStructuresOption == REMOVE_EMPTY_REPLACED_CLASS_STRUCTURES) {
+			println("Removing all empty replaced class structures from the data type manager");
+			recoverClassesFromRTTI.removeReplacedClassStructures(recoveredClasses, false);
+		}
+
+		if (replacedClassStructuresOption == REMOVE_ALL_REPLACED_CLASS_STRUCTURES) {
+			println(
+				"Removing all replaced class structures from the data type manager, including non-empty ones");
+			recoverClassesFromRTTI.removeReplacedClassStructures(recoveredClasses, true);
+		}
+
 
 		decompilerUtils.disposeDecompilerInterface();
+	}
+
+	private boolean hasDwarf() {
+		return DWARFProgram.isDWARF(currentProgram);
 	}
 
 	/**
@@ -266,14 +325,14 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 	 * @return true if pdb info has been applied to program
 	 */
 	private boolean isPDBLoadedInProgram() {
+		Options options = currentProgram.getOptions(Program.PROGRAM_INFO);
+		return options.getBoolean(PdbParserConstants.PDB_LOADED, false);
+	}
 
-		Options options = currentProgram.getOptions("Program Information");
-		isPDBLoaded = false;
-		Object isPDBLoadedObject = options.getObject("PDB Loaded", null);
-		if (isPDBLoadedObject != null) {
-			isPDBLoaded = (boolean) isPDBLoadedObject;
-		}
-		return isPDBLoaded;
+	private boolean isDwarfLoadedInProgram() {
+
+		return DWARFFunctionImporter.hasDWARFProgModule(currentProgram,
+			DWARFProgram.DWARF_ROOT_NAME);
 	}
 
 	public String validate() {
@@ -333,7 +392,7 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 	private AttributedGraph createGraph(List<RecoveredClass> recoveredClasses)
 			throws CancelledException {
 
-		AttributedGraph g = new AttributedGraph();
+		AttributedGraph g = new AttributedGraph("Test Graph", new EmptyGraphType());
 
 		Iterator<RecoveredClass> recoveredClassIterator = recoveredClasses.iterator();
 		while (recoveredClassIterator.hasNext()) {
@@ -341,7 +400,8 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 
 			RecoveredClass recoveredClass = recoveredClassIterator.next();
 
-			AttributedVertex classVertex = g.addVertex(recoveredClass.getName());
+			AttributedVertex classVertex =
+				g.addVertex(recoveredClass.getClassPath().getPath(), recoveredClass.getName());
 
 			Map<RecoveredClass, List<RecoveredClass>> classHierarchyMap =
 				recoveredClass.getClassHierarchyMap();
@@ -349,6 +409,7 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 			// no parent = blue vertex
 			if (classHierarchyMap.isEmpty()) {
 				classVertex.setAttribute("Color", "Blue");
+				classVertex.setDescription(recoveredClass.getClassPath().getPath());
 				continue;
 			}
 
@@ -363,6 +424,8 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 				classVertex.setAttribute("Color", "Red");
 			}
 
+			classVertex.setDescription(recoveredClass.getClassPath().getPath());
+
 			Map<RecoveredClass, Boolean> parentToBaseTypeMap =
 				recoveredClass.getParentToBaseTypeMap();
 
@@ -371,7 +434,10 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 				monitor.checkCanceled();
 				RecoveredClass parent = parentIterator.next();
 
-				AttributedVertex parentVertex = g.addVertex(parent.getName());
+				AttributedVertex parentVertex =
+					g.addVertex(parent.getClassPath().getPath(), parent.getName());
+
+				parentVertex.setDescription(parent.getClassPath().getPath());
 
 				AttributedEdge edge = g.addEdge(parentVertex, classVertex);
 
@@ -446,8 +512,8 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 
 
 	/**
-	 * Script only works on versions of ghidra after 9.2, but not 9.2.1 because a method was
-	 * accidentally removed from FillOutStructureCmd that is needed
+	 * Script works on versions of ghidra including and after 9.2 except for 9.2.1 because a method 
+	 * was accidentally removed from FillOutStructureCmd that is needed
 	 * @return true if script will work and false otherwise
 	 */
 	private boolean checkGhidraVersion() {
@@ -465,9 +531,41 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 	 */
 	private boolean isGcc() {
 
-		isGcc =
+		boolean isELF = currentProgram.getExecutableFormat().contains("ELF");
+		if (!isELF) {
+			return false;
+		}
+
+		boolean isCompilerSpecGcc =
 			currentProgram.getCompilerSpec().getCompilerSpecID().getIdAsString().equalsIgnoreCase(
 				"gcc");
+		if (isCompilerSpecGcc) {
+			return true;
+		}
+
+		MemoryBlock commentBlock = currentProgram.getMemory().getBlock(".comment");
+		if (commentBlock == null) {
+			return false;
+		}
+
+		if (!commentBlock.isLoaded()) {
+			return false;
+		}
+
+
+		// check memory bytes in block for GCC: bytes
+		byte[] gccBytes = { (byte) 0x47, (byte) 0x43, (byte) 0x43, (byte) 0x3a };
+		byte[] maskBytes = { (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff };
+
+		Address found = currentProgram.getMemory().findBytes(commentBlock.getStart(),
+				commentBlock.getEnd(), gccBytes, maskBytes, true, monitor);
+		if (found == null) {
+			isGcc = false;
+		}
+		else {
+			isGcc = true;
+		}
+
 		return isGcc;
 	}
 
@@ -511,25 +609,6 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 		return true;
 	}
 
-
-
-	//TODO: call this before create data in debug mode from script
-	private void findClassesWithErrors(List<RecoveredClass> recoveredClasses)
-			throws CancelledException {
-
-		Iterator<RecoveredClass> iterator = recoveredClasses.iterator();
-		while (iterator.hasNext()) {
-			monitor.checkCanceled();
-			RecoveredClass recoveredClass = iterator.next();
-			if (hasConstructorDestructorDiscrepancy(recoveredClass)) {
-				println(recoveredClass.getName() + " has function on both c and d lists");
-			}
-		}
-	}
-
-
-
-
 	/**
 	 * Method to analyze the program changes with the decompiler parameter ID analyzer
 	 * @param set the set of addresses to analyze
@@ -550,9 +629,7 @@ public class RecoverClassesFromRTTIScript extends GhidraScript {
 	private String getVersionOfGhidra() {
 
 		Options options = currentProgram.getOptions("Program Information");
-		Object ghidraVersionObject = options.getObject("Created With Ghidra Version", null);
-
-		return ghidraVersionObject.toString();
+		return options.getString("Created With Ghidra Version", null);
 	}
 
 

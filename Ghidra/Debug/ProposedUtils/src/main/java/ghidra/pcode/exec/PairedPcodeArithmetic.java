@@ -45,18 +45,18 @@ public class PairedPcodeArithmetic<L, R> implements PcodeArithmetic<Pair<L, R>> 
 	}
 
 	@Override
-	public Pair<L, R> unaryOp(UnaryOpBehavior op, int sizeout, int sizein, Pair<L, R> in1) {
+	public Pair<L, R> unaryOp(UnaryOpBehavior op, int sizeout, int sizein1, Pair<L, R> in1) {
 		return new ImmutablePair<>(
-			leftArith.unaryOp(op, sizeout, sizein, in1.getLeft()),
-			rightArith.unaryOp(op, sizeout, sizein, in1.getRight()));
+			leftArith.unaryOp(op, sizeout, sizein1, in1.getLeft()),
+			rightArith.unaryOp(op, sizeout, sizein1, in1.getRight()));
 	}
 
 	@Override
-	public Pair<L, R> binaryOp(BinaryOpBehavior op, int sizeout, int sizein, Pair<L, R> in1,
-			Pair<L, R> in2) {
+	public Pair<L, R> binaryOp(BinaryOpBehavior op, int sizeout, int sizein1, Pair<L, R> in1,
+			int sizein2, Pair<L, R> in2) {
 		return new ImmutablePair<>(
-			leftArith.binaryOp(op, sizeout, sizein, in1.getLeft(), in2.getLeft()),
-			rightArith.binaryOp(op, sizeout, sizein, in2.getRight(), in2.getRight()));
+			leftArith.binaryOp(op, sizeout, sizein1, in1.getLeft(), sizein2, in2.getLeft()),
+			rightArith.binaryOp(op, sizeout, sizein1, in1.getRight(), sizein2, in2.getRight()));
 	}
 
 	@Override
@@ -66,9 +66,9 @@ public class PairedPcodeArithmetic<L, R> implements PcodeArithmetic<Pair<L, R>> 
 	}
 
 	@Override
-	public Pair<L, R> fromConst(BigInteger value, int size) {
-		return new ImmutablePair<>(leftArith.fromConst(value, size),
-			rightArith.fromConst(value, size));
+	public Pair<L, R> fromConst(BigInteger value, int size, boolean isContextreg) {
+		return new ImmutablePair<>(leftArith.fromConst(value, size, isContextreg),
+			rightArith.fromConst(value, size, isContextreg));
 	}
 
 	@Override
@@ -77,7 +77,15 @@ public class PairedPcodeArithmetic<L, R> implements PcodeArithmetic<Pair<L, R>> 
 	}
 
 	@Override
-	public BigInteger toConcrete(Pair<L, R> value) {
-		return leftArith.toConcrete(value.getLeft());
+	public BigInteger toConcrete(Pair<L, R> value, boolean isContextreg) {
+		return leftArith.toConcrete(value.getLeft(), isContextreg);
+	}
+
+	public PcodeArithmetic<L> getLeft() {
+		return leftArith;
+	}
+
+	public PcodeArithmetic<R> getRight() {
+		return rightArith;
 	}
 }

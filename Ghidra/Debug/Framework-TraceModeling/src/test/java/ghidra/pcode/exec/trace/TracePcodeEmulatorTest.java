@@ -20,6 +20,7 @@ import static org.junit.Assert.*;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.junit.Test;
@@ -32,8 +33,7 @@ import ghidra.app.plugin.assembler.sleigh.sem.AssemblyPatternBlock;
 import ghidra.app.plugin.processors.sleigh.SleighLanguage;
 import ghidra.pcode.emu.PcodeThread;
 import ghidra.pcode.exec.*;
-import ghidra.program.model.lang.Register;
-import ghidra.program.model.lang.RegisterValue;
+import ghidra.program.model.lang.*;
 import ghidra.program.model.listing.Instruction;
 import ghidra.test.AbstractGhidraHeadlessIntegrationTest;
 import ghidra.trace.database.ToyDBTraceBuilder;
@@ -272,7 +272,7 @@ public class TracePcodeEmulatorTest extends AbstractGhidraHeadlessIntegrationTes
 				emuThread.getState().getVar(pc));
 			assertEquals(new RegisterValue(ctxreg, BigInteger.valueOf(0x8000_0000_0000_0000L)),
 				emuThread.getContext());
-			assertArrayEquals(tb.arr(0, 0, 0, 0, 0, 0, 0, 0x80),
+			assertArrayEquals(tb.arr(0x80, 0, 0, 0, 0, 0, 0, 0),
 				emuThread.getState().getVar(ctxreg));
 
 			emuThread.stepInstruction();
@@ -291,12 +291,12 @@ public class TracePcodeEmulatorTest extends AbstractGhidraHeadlessIntegrationTes
 	}
 
 	/**
-	 * This tests an language without a contextreg
+	 * This tests a language without a real contextreg
 	 */
 	@Test
 	public void testIMM() throws Throwable {
 		try (ToyDBTraceBuilder tb = new ToyDBTraceBuilder("Test", "Toy:BE:64:default")) {
-			assertNull(tb.language.getContextBaseRegister());
+			assertEquals(Register.NO_CONTEXT, tb.language.getContextBaseRegister());
 
 			TraceThread thread = initTrace(tb,
 				List.of(
@@ -329,7 +329,6 @@ public class TracePcodeEmulatorTest extends AbstractGhidraHeadlessIntegrationTes
 	@Test
 	public void testBRDS() throws Throwable {
 		try (ToyDBTraceBuilder tb = new ToyDBTraceBuilder("Test", "Toy:BE:64:default")) {
-			Assembler asm = Assemblers.getAssembler(tb.trace.getFixedProgramView(0));
 			TraceThread thread = initTrace(tb,
 				List.of(
 					"pc = 0x00400000;",
@@ -628,6 +627,277 @@ public class TracePcodeEmulatorTest extends AbstractGhidraHeadlessIntegrationTes
 
 			assertEquals(BigInteger.valueOf(16),
 				TraceSleighUtils.evaluate("r1", tb.trace, 1, thread, 0));
+		}
+	}
+
+	/**
+	 * Test x86's MOVAPS instruction
+	 * 
+	 * <p>
+	 * This test hits a SUBPIECE instruction where the two input operands have differing sizes.
+	 */
+	@Test
+	public void testMOVAPS() throws Throwable {
+		try (ToyDBTraceBuilder tb = new ToyDBTraceBuilder("Test", "x86:LE:64:default")) {
+			Register pc = tb.language.getProgramCounter();
+
+			TraceThread thread = initTrace(tb,
+				List.of(
+					"RIP = 0x00400000;",
+					"RSP = 0x00110000;",
+					"*:8 0x00600008:8 = 0x0123456789abcdef;", // LE
+					"*:8 0x00600000:8 = 0xfedcba9876543210;"),
+				List.of(
+					"MOVAPS XMM0, xmmword ptr [0x00600000]"));
+
+			TracePcodeEmulator emu = new TracePcodeEmulator(tb.trace, 0);
+			PcodeThread<byte[]> emuThread = emu.newThread(thread.getPath());
+			emuThread.overrideContextWithDefault();
+			emuThread.stepInstruction();
+
+			assertEquals(tb.addr(0x00400007), emuThread.getCounter());
+			assertArrayEquals(tb.arr(0x07, 0, 0x40, 0, 0, 0, 0, 0),
+				emuThread.getState().getVar(pc));
+
+			try (UndoableTransaction tid = tb.startTransaction()) {
+				emu.writeDown(tb.trace, 1, 1, false);
+			}
+
+			assertEquals(new BigInteger("0123456789abcdeffedcba9876543210", 16),
+				TraceSleighUtils.evaluate("XMM0", tb.trace, 1, thread, 0));
+		}
+	}
+
+	/**
+	 * Test x86's SAR instruction
+	 * 
+	 * <p>
+	 * This test hits an INT_SRIGHT p-code op where the two input operands have differing sizes.
+	 */
+	@Test
+	public void testSAR() throws Throwable {
+		try (ToyDBTraceBuilder tb = new ToyDBTraceBuilder("Test", "x86:LE:64:default")) {
+			Register pc = tb.language.getProgramCounter();
+
+			TraceThread thread = initTrace(tb,
+				List.of(
+					"RIP = 0x00400000;",
+					"RSP = 0x00110000;",
+					"RAX = 0x7fffffff;",
+					"RCX = 4;"),
+				List.of(
+					"SAR EAX, CL"));
+
+			TracePcodeEmulator emu = new TracePcodeEmulator(tb.trace, 0);
+			PcodeThread<byte[]> emuThread = emu.newThread(thread.getPath());
+			emuThread.overrideContextWithDefault();
+			emuThread.stepInstruction();
+
+			assertEquals(tb.addr(0x00400002), emuThread.getCounter());
+			assertArrayEquals(tb.arr(0x02, 0, 0x40, 0, 0, 0, 0, 0),
+				emuThread.getState().getVar(pc));
+
+			try (UndoableTransaction tid = tb.startTransaction()) {
+				emu.writeDown(tb.trace, 1, 1, false);
+			}
+
+			assertEquals(BigInteger.valueOf(0x7ffffff),
+				TraceSleighUtils.evaluate("RAX", tb.trace, 1, thread, 0));
+		}
+	}
+
+	@Test
+	public void testCachedReadAfterSmallWrite() throws Throwable {
+		try (ToyDBTraceBuilder tb = new ToyDBTraceBuilder("Test", "x86:LE:64:default")) {
+			TraceThread thread = initTrace(tb,
+				List.of(
+					"RIP = 0x00400000;",
+					"RSP = 0x00110000;",
+					"RAX = 0x12345678;"),
+				List.of(
+					"XOR AH, AH",
+					"MOV RCX, RAX"));
+
+			TracePcodeEmulator emu = new TracePcodeEmulator(tb.trace, 0);
+			PcodeThread<byte[]> emuThread = emu.newThread(thread.getPath());
+			emuThread.overrideContextWithDefault();
+			emuThread.stepInstruction();
+			emuThread.stepInstruction();
+
+			try (UndoableTransaction tid = tb.startTransaction()) {
+				emu.writeDown(tb.trace, 1, 1, false);
+			}
+
+			assertEquals(BigInteger.valueOf(0x12340078),
+				TraceSleighUtils.evaluate("RAX", tb.trace, 1, thread, 0));
+		}
+	}
+
+	@Test(expected = AccessPcodeExecutionException.class)
+	public void testCheckedMOV_err() throws Throwable {
+		try (ToyDBTraceBuilder tb = new ToyDBTraceBuilder("Test", "x86:LE:64:default")) {
+			TraceThread thread = initTrace(tb,
+				List.of(
+					"RIP = 0x00400000;"),
+				List.of(
+					"MOV RCX,RAX"));
+
+			TracePcodeEmulator emu = new TracePcodeEmulator(tb.trace, 0) {
+				@Override
+				protected PcodeExecutorState<byte[]> newState(TraceThread thread) {
+					return new RequireIsKnownTraceCachedWriteBytesPcodeExecutorState(trace, snap,
+						thread, 0);
+				}
+			};
+			PcodeThread<byte[]> emuThread = emu.newThread(thread.getPath());
+			emuThread.overrideContextWithDefault();
+			emuThread.stepInstruction();
+		}
+	}
+
+	@Test
+	public void testCheckedMOV_known() throws Throwable {
+		try (ToyDBTraceBuilder tb = new ToyDBTraceBuilder("Test", "x86:LE:64:default")) {
+			TraceThread thread = initTrace(tb,
+				List.of(
+					"RIP = 0x00400000;",
+					"RAX = 0x1234;"), // Make it known in the trace
+				List.of(
+					"MOV RCX,RAX"));
+
+			TracePcodeEmulator emu = new TracePcodeEmulator(tb.trace, 0) {
+				@Override
+				protected PcodeExecutorState<byte[]> newState(TraceThread thread) {
+					return new RequireIsKnownTraceCachedWriteBytesPcodeExecutorState(trace, snap,
+						thread, 0);
+				}
+			};
+			PcodeThread<byte[]> emuThread = emu.newThread(thread.getPath());
+			emuThread.overrideContextWithDefault();
+			emuThread.stepInstruction();
+			// No assertions. It should simply not throw an exception.
+		}
+	}
+
+	@Test(expected = AccessPcodeExecutionException.class)
+	public void testCheckedMOV_knownPast_err() throws Throwable {
+		try (ToyDBTraceBuilder tb = new ToyDBTraceBuilder("Test", "x86:LE:64:default")) {
+			TraceThread thread = initTrace(tb,
+				List.of(
+					"RIP = 0x00400000;",
+					"RAX = 0x1234;"), // Make it known in the trace
+				List.of(
+					"MOV RCX,RAX"));
+
+			// Start emulator one snap later
+			TracePcodeEmulator emu = new TracePcodeEmulator(tb.trace, 1) {
+				@Override
+				protected PcodeExecutorState<byte[]> newState(TraceThread thread) {
+					return new RequireIsKnownTraceCachedWriteBytesPcodeExecutorState(trace, snap,
+						thread, 0);
+				}
+			};
+			PcodeThread<byte[]> emuThread = emu.newThread(thread.getPath());
+			emuThread.overrideContextWithDefault();
+			emuThread.stepInstruction();
+			// No assertions. It should throw an exception.
+		}
+	}
+
+	@Test
+	public void testCheckedMOV_knownPast_has() throws Throwable {
+		try (ToyDBTraceBuilder tb = new ToyDBTraceBuilder("Test", "x86:LE:64:default")) {
+			TraceThread thread = initTrace(tb,
+				List.of(
+					"RIP = 0x00400000;",
+					"RAX = 0x1234;"), // Make it known in the trace
+				List.of(
+					"MOV RCX,RAX"));
+
+			// Start emulator one snap later, but with "has-known" checks
+			TracePcodeEmulator emu = new TracePcodeEmulator(tb.trace, 1) {
+				@Override
+				protected PcodeExecutorState<byte[]> newState(TraceThread thread) {
+					return new RequireHasKnownTraceCachedWriteBytesPcodeExecutorState(trace, snap,
+						thread, 0);
+				}
+			};
+			PcodeThread<byte[]> emuThread = emu.newThread(thread.getPath());
+			emuThread.overrideContextWithDefault();
+			emuThread.stepInstruction();
+			// No assertions. It should simply not throw an exception.
+		}
+	}
+
+	@Test
+	public void testCheckedMOV_initialized() throws Throwable {
+		try (ToyDBTraceBuilder tb = new ToyDBTraceBuilder("Test", "x86:LE:64:default")) {
+			TraceThread thread = initTrace(tb,
+				List.of(
+					"RIP = 0x00400000;"),
+				List.of(
+					"MOV RAX,0", // Have the program initialize it
+					"MOV RCX,RAX"));
+
+			TracePcodeEmulator emu = new TracePcodeEmulator(tb.trace, 0) {
+				@Override
+				protected PcodeExecutorState<byte[]> newState(TraceThread thread) {
+					return new RequireIsKnownTraceCachedWriteBytesPcodeExecutorState(trace, snap,
+						thread, 0);
+				}
+			};
+			PcodeThread<byte[]> emuThread = emu.newThread(thread.getPath());
+			emuThread.overrideContextWithDefault();
+			emuThread.stepInstruction();
+			emuThread.stepInstruction();
+			// No assertions. It should simply not throw an exception.
+		}
+	}
+
+	@Test
+	public void testDEC_MOV_compat32() throws Throwable {
+		try (ToyDBTraceBuilder tb = new ToyDBTraceBuilder("Test", "x86:LE:64:default")) {
+			Language lang = tb.trace.getBaseLanguage();
+			Register ctxReg = lang.getContextBaseRegister();
+			Register opsizeReg = lang.getRegister("opsize");
+			Register addrsizeReg = lang.getRegister("addrsize");
+			Register longModeReg = lang.getRegister("longMode");
+			RegisterValue ctxVal = new RegisterValue(ctxReg)
+					.assign(opsizeReg, BigInteger.ONE)
+					.assign(addrsizeReg, BigInteger.ONE)
+					.assign(longModeReg, BigInteger.ZERO);
+			try (UndoableTransaction tid = tb.startTransaction()) {
+				tb.trace.getRegisterContextManager()
+						.setValue(lang, ctxVal, Range.atLeast(0L),
+							tb.range(0x00400000, 0x00400002));
+			}
+			TraceThread thread = initTrace(tb,
+				List.of(
+					"RIP = 0x00400000;",
+					"RSP = 0x00110000;",
+					"RAX = 0xff12345678;"),
+				List.of(
+					"DEC EAX",
+					"MOV ECX,EAX"));
+			// Assembly sanity check
+			ByteBuffer buf = ByteBuffer.allocate(3);
+			tb.trace.getMemoryManager().getBytes(0, tb.addr(0x00400000), buf);
+			assertArrayEquals(tb.arr(0x48, 0x89, 0xc1), buf.array());
+
+			TracePcodeEmulator emu = new TracePcodeEmulator(tb.trace, 0);
+			PcodeThread<byte[]> emuThread = emu.newThread(thread.getPath());
+			emuThread.overrideContext(ctxVal);
+			emuThread.stepInstruction();
+			emuThread.stepInstruction();
+
+			try (UndoableTransaction tid = tb.startTransaction()) {
+				emu.writeDown(tb.trace, 1, 1, false);
+			}
+
+			assertEquals(BigInteger.valueOf(0x00400003),
+				TraceSleighUtils.evaluate("RIP", tb.trace, 1, thread, 0));
+			assertEquals(BigInteger.valueOf(0x12345677),
+				TraceSleighUtils.evaluate("RCX", tb.trace, 1, thread, 0));
 		}
 	}
 }

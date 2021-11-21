@@ -17,17 +17,17 @@ package ghidra.app.plugin.core.debug.gui.thread;
 
 import static org.junit.Assert.*;
 
-import java.awt.Point;
-import java.awt.Rectangle;
 import java.awt.event.MouseEvent;
 import java.util.List;
 import java.util.Set;
 
-import org.junit.*;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import com.google.common.collect.Range;
 
-import docking.widgets.EventTrigger;
+import generic.test.category.NightlyCategory;
 import ghidra.app.plugin.core.debug.gui.AbstractGhidraHeadedDebuggerGUITest;
 import ghidra.app.services.TraceRecorder;
 import ghidra.trace.model.Trace;
@@ -37,6 +37,7 @@ import ghidra.trace.model.time.TraceSnapshot;
 import ghidra.trace.model.time.TraceTimeManager;
 import ghidra.util.database.UndoableTransaction;
 
+@Category(NightlyCategory.class) // this may actually be an @PortSensitive test
 public class DebuggerThreadsProviderTest extends AbstractGhidraHeadedDebuggerGUITest {
 
 	protected DebuggerThreadsPlugin threadsPlugin;
@@ -264,14 +265,14 @@ public class DebuggerThreadsProviderTest extends AbstractGhidraHeadedDebuggerGUI
 		traceManager.activateTrace(tb.trace);
 		waitForSwing();
 
-		assertEquals(0, threadsProvider.threadTimeline.getMaxSnapAtLeast());
+		assertEquals(1, threadsProvider.rangeRenderer.getFullRange().upperEndpoint().longValue());
 
 		try (UndoableTransaction tid = tb.startTransaction()) {
 			manager.getSnapshot(10, true);
 		}
 		waitForSwing();
 
-		assertEquals(10, threadsProvider.threadTimeline.getMaxSnapAtLeast());
+		assertEquals(11, threadsProvider.rangeRenderer.getFullRange().upperEndpoint().longValue());
 	}
 
 	// NOTE: Do not test delete updates timeline max, as maxSnap does not reflect deletion
@@ -290,8 +291,7 @@ public class DebuggerThreadsProviderTest extends AbstractGhidraHeadedDebuggerGUI
 
 		assertEquals("15",
 			threadsProvider.threadTableModel.getModelData().get(0).getDestructionSnap());
-		assertEquals(Range.closed(-1d, 16d),
-			threadsProvider.threadTimeline.timeline.getViewRange());
+		// NOTE: Plot max is based on time table, never thread destruction
 	}
 
 	@Test
@@ -301,8 +301,7 @@ public class DebuggerThreadsProviderTest extends AbstractGhidraHeadedDebuggerGUI
 		traceManager.activateTrace(tb.trace);
 		waitForSwing();
 
-		assertEquals(Range.closed(-1d, 11d),
-			threadsProvider.threadTimeline.timeline.getViewRange());
+		assertEquals(2, threadsProvider.threadTableModel.getModelData().size());
 
 		try (UndoableTransaction tid = tb.startTransaction()) {
 			thread2.delete();
@@ -310,7 +309,7 @@ public class DebuggerThreadsProviderTest extends AbstractGhidraHeadedDebuggerGUI
 		waitForSwing();
 
 		assertEquals(1, threadsProvider.threadTableModel.getModelData().size());
-		assertEquals(Range.closed(-1d, 1d), threadsProvider.threadTimeline.timeline.getViewRange());
+		// NOTE: Plot max is based on time table, never thread destruction
 	}
 
 	@Test
@@ -382,33 +381,6 @@ public class DebuggerThreadsProviderTest extends AbstractGhidraHeadedDebuggerGUI
 	}
 
 	@Test
-	@Ignore("TODO") // Not sure why this fails under Gradle but not my IDE
-	public void testSelectThreadInTimelineActivatesThread() throws Exception {
-		createAndOpenTrace();
-		addThreads();
-		traceManager.activateTrace(tb.trace);
-		waitForDomainObject(tb.trace);
-
-		assertThreadsPopulated();
-		assertThreadSelected(thread1);
-
-		// Otherwise, this test fails unpredictably
-		waitForPass(noExc(() -> {
-			Rectangle b = threadsProvider.threadTimeline.getCellBounds(thread2);
-			threadsProvider.threadTimeline.scrollRectToVisible(b);
-			Point tsl = threadsProvider.threadTimeline.getLocationOnScreen();
-			Point vp = threadsProvider.threadTimeline.getViewport().getViewPosition();
-			Point m =
-				new Point(tsl.x + b.x + b.width / 2 - vp.x, tsl.y + b.y + b.height / 2 - vp.y);
-			clickMouse(MouseEvent.BUTTON1, m);
-			waitForSwing();
-
-			assertThreadSelected(thread2);
-			assertEquals(thread2, traceManager.getCurrentThread());
-		}));
-	}
-
-	@Test
 	public void testActivateSnapUpdatesTimelineCursor() throws Exception {
 		createAndOpenTrace();
 		addThreads();
@@ -417,29 +389,12 @@ public class DebuggerThreadsProviderTest extends AbstractGhidraHeadedDebuggerGUI
 
 		assertThreadsPopulated();
 		assertEquals(0, traceManager.getCurrentSnap());
-		assertEquals(0, (int) threadsProvider.threadTimeline.topCursor.getValue());
+		assertEquals(0, threadsProvider.headerRenderer.getCursorPosition().longValue());
 
 		traceManager.activateSnap(6);
 		waitForSwing();
 
-		assertEquals(6, (int) threadsProvider.threadTimeline.topCursor.getValue());
-	}
-
-	@Test
-	public void testSeekTimelineActivatesSnap() throws Exception {
-		createAndOpenTrace();
-		addThreads();
-		traceManager.activateTrace(tb.trace);
-		waitForSwing();
-
-		assertThreadsPopulated();
-		assertEquals(0, traceManager.getCurrentSnap());
-		assertEquals(0, (int) threadsProvider.threadTimeline.topCursor.getValue());
-
-		threadsProvider.threadTimeline.topCursor.requestValue(6, EventTrigger.GUI_ACTION);
-		waitForSwing();
-
-		assertEquals(6, traceManager.getCurrentSnap());
+		assertEquals(6, threadsProvider.headerRenderer.getCursorPosition().longValue());
 	}
 
 	@Test

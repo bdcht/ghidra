@@ -759,6 +759,7 @@ public class HTMLUtilities {
 		//
 		// Use the label's builtin handling of HTML text via the HTMLEditorKit
 		//
+		Swing.assertSwingThread("This method must be called on the Swing thread");
 		JLabel label = new JLabel(text) {
 			@Override
 			public void paint(Graphics g) {
@@ -851,15 +852,8 @@ public class HTMLUtilities {
 	 * @return a string of the format #RRGGBB.
 	 */
 	public static String toHexString(Color color) {
-		int r = color.getRed();
-		int g = color.getGreen();
-		int b = color.getBlue();
-
-		StringBuilder buffy = new StringBuilder("#");
-		buffy.append(StringUtilities.pad(Integer.toHexString(r), '0', 2));
-		buffy.append(StringUtilities.pad(Integer.toHexString(g), '0', 2));
-		buffy.append(StringUtilities.pad(Integer.toHexString(b), '0', 2));
-		return buffy.toString().toUpperCase();
+		// this will format a color value as a 6 digit hex string (e.g. #rrggbb)
+		return String.format("#%06X", color.getRGB() & 0xffffff);
 	}
 
 }

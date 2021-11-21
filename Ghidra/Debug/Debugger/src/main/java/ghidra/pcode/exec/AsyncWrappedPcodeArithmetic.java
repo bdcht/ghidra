@@ -27,6 +27,7 @@ public class AsyncWrappedPcodeArithmetic<T> implements PcodeArithmetic<Completab
 		new AsyncWrappedPcodeArithmetic<>(BytesPcodeArithmetic.BIG_ENDIAN);
 	public static final AsyncWrappedPcodeArithmetic<byte[]> BYTES_LE =
 		new AsyncWrappedPcodeArithmetic<>(BytesPcodeArithmetic.LITTLE_ENDIAN);
+	@Deprecated(forRemoval = true) // TODO: Not getting used
 	public static final AsyncWrappedPcodeArithmetic<BigInteger> BIGINT =
 		new AsyncWrappedPcodeArithmetic<>(BigIntegerPcodeArithmetic.INSTANCE);
 
@@ -45,15 +46,16 @@ public class AsyncWrappedPcodeArithmetic<T> implements PcodeArithmetic<Completab
 	}
 
 	@Override
-	public CompletableFuture<T> unaryOp(UnaryOpBehavior op, int sizeout, int sizein,
+	public CompletableFuture<T> unaryOp(UnaryOpBehavior op, int sizeout, int sizein1,
 			CompletableFuture<T> in1) {
-		return in1.thenApply(t1 -> arithmetic.unaryOp(op, sizeout, sizein, t1));
+		return in1.thenApply(t1 -> arithmetic.unaryOp(op, sizeout, sizein1, t1));
 	}
 
 	@Override
-	public CompletableFuture<T> binaryOp(BinaryOpBehavior op, int sizeout, int sizein,
-			CompletableFuture<T> in1, CompletableFuture<T> in2) {
-		return in1.thenCombine(in2, (t1, t2) -> arithmetic.binaryOp(op, sizeout, sizein, t1, t2));
+	public CompletableFuture<T> binaryOp(BinaryOpBehavior op, int sizeout, int sizein1,
+			CompletableFuture<T> in1, int sizein2, CompletableFuture<T> in2) {
+		return in1.thenCombine(in2,
+			(t1, t2) -> arithmetic.binaryOp(op, sizeout, sizein1, t1, sizein2, t2));
 	}
 
 	@Override
@@ -62,8 +64,8 @@ public class AsyncWrappedPcodeArithmetic<T> implements PcodeArithmetic<Completab
 	}
 
 	@Override
-	public CompletableFuture<T> fromConst(BigInteger value, int size) {
-		return CompletableFuture.completedFuture(arithmetic.fromConst(value, size));
+	public CompletableFuture<T> fromConst(BigInteger value, int size, boolean isContextreg) {
+		return CompletableFuture.completedFuture(arithmetic.fromConst(value, size, isContextreg));
 	}
 
 	@Override
@@ -75,10 +77,10 @@ public class AsyncWrappedPcodeArithmetic<T> implements PcodeArithmetic<Completab
 	}
 
 	@Override
-	public BigInteger toConcrete(CompletableFuture<T> cond) {
+	public BigInteger toConcrete(CompletableFuture<T> cond, boolean isContextreg) {
 		if (!cond.isDone()) {
 			throw new AssertionError("You need a better 8-ball");
 		}
-		return arithmetic.toConcrete(cond.getNow(null));
+		return arithmetic.toConcrete(cond.getNow(null), isContextreg);
 	}
 }

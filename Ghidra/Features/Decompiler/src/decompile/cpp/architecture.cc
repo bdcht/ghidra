@@ -229,7 +229,6 @@ AddrSpace *Architecture::getSpaceBySpacebase(const Address &loc,int4 size) const
     }
   }
   throw LowlevelError("Unable to find entry for spacebase register");
-  return (AddrSpace *)0;
 }
 
 /// Look-up the laned register record associated with a specific storage location. Currently, the
@@ -286,7 +285,6 @@ void Architecture::clearAnalysis(Funcdata *fd)
   fd->clear();			// Clear stuff internal to function
   // Clear out any analysis generated comments
   commentdb->clearType(fd->getAddress(),Comment::warning|Comment::warningheader);
-  stringManager->clear();
 }
 
 /// Symbols do not necessarily need to be available for the decompiler.
@@ -1363,8 +1361,8 @@ Address SegmentedResolver::resolve(uintb val,int4 sz,const Address &point,uintb 
       uintb base = glb->context->getTrackedValue(segop->getResolve(),point);
       fullEncoding = (base << 8 * innersz) + (val & calc_mask(innersz));
       vector<uintb> seginput;
-      seginput.push_back(val);
       seginput.push_back(base);
+      seginput.push_back(val);
       val = segop->execute(seginput);
       return Address(spc,AddrSpace::addressToByte(val,spc->getWordSize()));
     }
@@ -1375,8 +1373,8 @@ Address SegmentedResolver::resolve(uintb val,int4 sz,const Address &point,uintb 
     uintb base = (val >> 8*innersz) & calc_mask(outersz);
     val = val & calc_mask(innersz);
     vector<uintb> seginput;
-    seginput.push_back(val);
     seginput.push_back(base);
+    seginput.push_back(val);
     val = segop->execute(seginput);
     return Address(spc,AddrSpace::addressToByte(val,spc->getWordSize()));
   }

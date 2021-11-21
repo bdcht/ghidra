@@ -38,6 +38,7 @@ import docking.actions.KeyBindingUtils;
 import docking.options.editor.*;
 import docking.tool.ToolConstants;
 import docking.widgets.MultiLineLabel;
+import docking.widgets.OptionDialog;
 import docking.widgets.filechooser.GhidraFileChooser;
 import docking.widgets.table.RowObjectFilterModel;
 import docking.widgets.tree.GTree;
@@ -160,11 +161,12 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 		// get the options panel
 		ScrollableOptionsEditor simpleOptionsPanel =
 			(ScrollableOptionsEditor) getEditorPanel(consoleNode);
-		assertNotNull(simpleOptionsPanel);
-		assertTrue(simpleOptionsPanel.isShowing());
+		JComponent comp = simpleOptionsPanel.getComponent();
+		assertNotNull(comp);
+		assertTrue(comp.isShowing());
 
 		String optionName = (String) getInstanceField("MAXIMUM_CHARACTERS_OPTION_NAME", textPane);
-		final Component component = findPairedComponent(simpleOptionsPanel, optionName);
+		final Component component = findPairedComponent(comp, optionName);
 		assertNotNull(component);
 
 		// click the option to toggle its state
@@ -244,7 +246,8 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 			ScrollableOptionsEditor editor = (ScrollableOptionsEditor) getEditorPanel(parentNode);
 
 			assertNotNull("Did not find options editor for name: " + simpleName, editor);
-			assertNotNull("simpleName = " + simpleName, findPairedComponent(editor, simpleName));
+			assertNotNull("simpleName = " + simpleName,
+				findPairedComponent(editor.getComponent(), simpleName));
 		}
 	}
 
@@ -273,7 +276,7 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 			}
 			ScrollableOptionsEditor p = (ScrollableOptionsEditor) getEditorPanel(parent);
 			assertNotNull(p);
-			assertNotNull(findPairedComponent(p, simpleName));
+			assertNotNull(findPairedComponent(p.getComponent(), simpleName));
 		}
 	}
 
@@ -331,9 +334,10 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 		ScrollableOptionsEditor simpleOptionsPanel =
 			(ScrollableOptionsEditor) getEditorPanel(toolNode);
 		assertNotNull(simpleOptionsPanel);
-		assertTrue(simpleOptionsPanel.isShowing());
+		JComponent comp = simpleOptionsPanel.getComponent();
+		assertTrue(comp.isShowing());
 
-		Component component = findPairedComponent(simpleOptionsPanel, "Favorite Color");
+		Component component = findPairedComponent(comp, "Favorite Color");
 		assertNotNull(component);
 		Rectangle rect = component.getBounds();
 		clickMouse(component, 1, rect.x, rect.y, 2, 0);
@@ -366,10 +370,11 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 		ScrollableOptionsEditor simpleOptionsPanel =
 			(ScrollableOptionsEditor) getEditorPanel(buttonNode);
 		assertNotNull(simpleOptionsPanel);
-		assertTrue(simpleOptionsPanel.isShowing());
+		JComponent comp = simpleOptionsPanel.getComponent();
+		assertTrue(comp.isShowing());
 
 		PropertySelector ps =
-			(PropertySelector) findPairedComponent(simpleOptionsPanel, "Mouse Button To Activate");
+			(PropertySelector) findPairedComponent(comp, "Mouse Button To Activate");
 		assertNotNull(ps);
 		runSwing(() -> ps.setSelectedIndex(0));
 		assertEquals("LEFT", ps.getSelectedItem());
@@ -513,10 +518,12 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 		ScrollableOptionsEditor simpleOptionsPanel =
 			(ScrollableOptionsEditor) getEditorPanel(buttonNode);
 		assertNotNull(simpleOptionsPanel);
-		assertTrue(simpleOptionsPanel.isShowing());
+		JComponent comp = simpleOptionsPanel.getComponent();
+
+		assertTrue(comp.isShowing());
 
 		PropertySelector ps =
-			(PropertySelector) findPairedComponent(simpleOptionsPanel, "Mouse Button To Activate");
+			(PropertySelector) findPairedComponent(comp, "Mouse Button To Activate");
 
 		// change to "LEFT"
 		runSwing(() -> ps.setSelectedIndex(0));
@@ -545,18 +552,20 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 
 		ScrollableOptionsEditor simpleOptionsPanel =
 			(ScrollableOptionsEditor) getEditorPanel(buttonNode);
+
 		assertNotNull(simpleOptionsPanel);
-		assertTrue(simpleOptionsPanel.isShowing());
+		JComponent comp = simpleOptionsPanel.getComponent();
+		assertTrue(comp.isShowing());
 
 		PropertySelector ps =
-			(PropertySelector) findPairedComponent(simpleOptionsPanel, "Mouse Button To Activate");
+			(PropertySelector) findPairedComponent(comp, "Mouse Button To Activate");
 
 		// change to "LEFT"
 		runSwing(() -> ps.setSelectedIndex(0));
 
-		final JButton cancelButton = findButtonByText(dialog.getComponent(), "Cancel");
-		assertTrue(cancelButton.isEnabled());
-		runSwing(() -> cancelButton.getActionListeners()[0].actionPerformed(null));
+		pressButtonByText(dialog, "Cancel", false);
+		OptionDialog yesNoDialog = waitForDialogComponent(OptionDialog.class);
+		pressButtonByText(yesNoDialog.getComponent(), "No");
 
 		Options options = tool.getOptions(ToolConstants.TOOL_OPTIONS);
 		GhidraOptions.CURSOR_MOUSE_BUTTON_NAMES mouseButton =
@@ -564,7 +573,7 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 				(GhidraOptions.CURSOR_MOUSE_BUTTON_NAMES) null);
 
 		assertEquals("MIDDLE", mouseButton.toString());
-		assertTrue(!dialog.isShowing());
+		assertFalse(runSwing(() -> dialog.isShowing()));
 	}
 
 	@Test
@@ -592,15 +601,17 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 
 		ScrollableOptionsEditor p = (ScrollableOptionsEditor) getEditorPanel(testNode);
 		assertNotNull(p);
-		assertTrue(p.isShowing());
+		JComponent comp = p.getComponent();
 
-		JTextField field = (JTextField) findPairedComponent(p, "String Value 1");
+		assertTrue(comp.isShowing());
+
+		JTextField field = (JTextField) findPairedComponent(comp, "String Value 1");
 		assertNotNull(field);
-		field = (JTextField) findPairedComponent(p, "String Value 2");
+		field = (JTextField) findPairedComponent(comp, "String Value 2");
 		assertNotNull(field);
-		field = (JTextField) findPairedComponent(p, "String Value 3");
+		field = (JTextField) findPairedComponent(comp, "String Value 3");
 		assertNotNull(field);
-		field = (JTextField) findPairedComponent(p, "Int Value");
+		field = (JTextField) findPairedComponent(comp, "Int Value");
 		assertNotNull(field);
 	}
 
@@ -614,9 +625,10 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 		ScrollableOptionsEditor simpleOptionsPanel =
 			(ScrollableOptionsEditor) getEditorPanel(toolNode);
 		assertNotNull(simpleOptionsPanel);
-		assertTrue(simpleOptionsPanel.isShowing());
+		JComponent comp = simpleOptionsPanel.getComponent();
+		assertTrue(comp.isShowing());
 
-		Component component = findPairedComponent(simpleOptionsPanel, "Favorite Color");
+		Component component = findPairedComponent(comp, "Favorite Color");
 		assertNotNull(component);
 		Rectangle rect = component.getBounds();
 		clickMouse(component, 1, rect.x, rect.y, 2, 0);
@@ -659,9 +671,10 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 		ScrollableOptionsEditor simpleOptionsPanel =
 			(ScrollableOptionsEditor) getEditorPanel(toolNode);
 		assertNotNull(simpleOptionsPanel);
-		assertTrue(simpleOptionsPanel.isShowing());
+		JComponent comp = simpleOptionsPanel.getComponent();
+		assertTrue(comp.isShowing());
 
-		Component canvas = findPairedComponent(simpleOptionsPanel, "Favorite Color");
+		Component canvas = findPairedComponent(comp, "Favorite Color");
 		assertNotNull(canvas);
 		Rectangle rect = canvas.getBounds();
 		clickMouse(canvas, 1, rect.x, rect.y, 2, 0);
@@ -846,7 +859,7 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 	}
 
 	private void pressBrowseButton(ScrollableOptionsEditor editor, String optionName) {
-		Component comp = findPairedComponent(editor, optionName);
+		Component comp = findPairedComponent(editor.getComponent(), optionName);
 		assertNotNull(comp);
 		AbstractButton button = findAbstractButtonByName((Container) comp, "BrowseButton");
 		assertNotNull(button);
@@ -856,7 +869,7 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 	}
 
 	private JTextField getEditorTextField(ScrollableOptionsEditor editor, String optionName) {
-		Component comp = findPairedComponent(editor, optionName);
+		Component comp = findPairedComponent(editor.getComponent(), optionName);
 		assertNotNull(comp);
 
 		JTextField tf = findComponent((Container) comp, JTextField.class);
@@ -877,7 +890,7 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 
 		ScrollableOptionsEditor editor = (ScrollableOptionsEditor) getEditorPanel(toolNode);
 		assertNotNull(editor);
-		assertTrue(editor.isShowing());
+		assertTrue(editor.getComponent().isShowing());
 		return editor;
 	}
 
@@ -905,7 +918,7 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 
 		ScrollableOptionsEditor editor =
 			selectSubNodeWithDefaultEditor(parentNodeName, childNodeName);
-		JCheckBox checkBox = (JCheckBox) findPairedComponent(editor, optionName);
+		JCheckBox checkBox = (JCheckBox) findPairedComponent(editor.getComponent(), optionName);
 		return checkBox.isSelected();
 	}
 
@@ -914,7 +927,8 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 
 		ScrollableOptionsEditor editor =
 			selectSubNodeWithDefaultEditor(parentNodeName, childNodeName);
-		final JCheckBox checkBox = (JCheckBox) findPairedComponent(editor, optionName);
+		final JCheckBox checkBox =
+			(JCheckBox) findPairedComponent(editor.getComponent(), optionName);
 		runSwing(() -> checkBox.setSelected(newValue));
 		assertEquals(newValue, checkBox.isSelected());
 	}
@@ -923,7 +937,8 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 			throws Exception {
 
 		ScrollableOptionsEditor editor = selectNodeWithDefaultEditor(parentNodeName);
-		JTextField textField = (JTextField) findPairedComponent(editor, childNodeName);
+		JTextField textField =
+			(JTextField) findPairedComponent(editor.getComponent(), childNodeName);
 		return getText(textField);
 	}
 
@@ -931,7 +946,8 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 			String newValue) throws Exception {
 
 		ScrollableOptionsEditor editor = selectNodeWithDefaultEditor(parentNodeName);
-		JTextField textField = (JTextField) findPairedComponent(editor, childNodeName);
+		JTextField textField =
+			(JTextField) findPairedComponent(editor.getComponent(), childNodeName);
 		setText(textField, newValue);
 		String updatedText = getText(textField);
 
@@ -952,7 +968,7 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 
 		ScrollableOptionsEditor editor = (ScrollableOptionsEditor) getEditorPanel(node);
 		assertNotNull(editor);
-		assertTrue(editor.isShowing());
+		assertTrue(editor.getComponent().isShowing());
 		return editor;
 	}
 
@@ -975,7 +991,7 @@ public class OptionsDialogTest extends AbstractGhidraHeadedIntegrationTest {
 
 		ScrollableOptionsEditor editor = (ScrollableOptionsEditor) getEditorPanel(childNode);
 		assertNotNull(editor);
-		assertTrue(editor.isShowing());
+		assertTrue(editor.getComponent().isShowing());
 		return editor;
 	}
 

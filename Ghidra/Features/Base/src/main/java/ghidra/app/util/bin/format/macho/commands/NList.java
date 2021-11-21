@@ -61,7 +61,7 @@ public class NList implements StructConverter {
 		n_sect = reader.readNextByte();
 		n_desc = reader.readNextShort();
 		if (is32bit) {
-			n_value = reader.readNextInt() & 0xffffffffL;
+			n_value = reader.readNextUnsignedInt();
 		}
 		else {
 			n_value = reader.readNextLong();
@@ -148,6 +148,11 @@ public class NList implements StructConverter {
 	public boolean isTypePreboundUndefined() {
 		return n_sect == NListConstants.NO_SECT &&
 			(n_type & NListConstants.MASK_N_TYPE) == NListConstants.TYPE_N_PBUD;
+	}
+
+	public boolean isIndirect() {
+		return n_sect == NListConstants.NO_SECT &&
+			(n_type & NListConstants.MASK_N_TYPE) == NListConstants.TYPE_N_INDR;
 	}
 
 	public boolean isSymbolicDebugging() {

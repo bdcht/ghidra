@@ -34,6 +34,7 @@ import ghidra.app.plugin.core.debug.DebuggerPluginPackage;
 import ghidra.app.plugin.core.debug.gui.breakpoint.DebuggerBreakpointsPlugin;
 import ghidra.app.plugin.core.debug.gui.console.DebuggerConsolePlugin;
 import ghidra.app.plugin.core.debug.gui.listing.DebuggerListingPlugin;
+import ghidra.app.plugin.core.debug.gui.memory.DebuggerMemoryBytesPlugin;
 import ghidra.app.plugin.core.debug.gui.memory.DebuggerRegionsPlugin;
 import ghidra.app.plugin.core.debug.gui.modules.DebuggerModulesPlugin;
 import ghidra.app.plugin.core.debug.gui.modules.DebuggerStaticMappingPlugin;
@@ -89,21 +90,36 @@ public interface DebuggerResources {
 	ImageIcon ICON_SNAP_BACKWARD = ResourceManager.loadImage("images/2leftarrow.png");
 	ImageIcon ICON_SEEK_PRESENT = ICON_RESUME;
 
-	ImageIcon ICON_SET_BREAKPOINT = ResourceManager.loadImage("images/breakpoint-set.png");
-	ImageIcon ICON_CLEAR_BREAKPOINT = ResourceManager.loadImage("images/breakpoint-clear.png");
-	ImageIcon ICON_ENABLE_BREAKPOINT = ResourceManager.loadImage("images/breakpoint-enable.png");
+	boolean altIcons = Boolean.getBoolean("debugger.breakpoints.alt.icons");
+
+	ImageIcon ICON_SET_BREAKPOINT =
+		altIcons ? ResourceManager.loadImage("images/alt-breakpoint-set.png")
+				: ResourceManager.loadImage("images/breakpoint-set.png");
+	ImageIcon ICON_CLEAR_BREAKPOINT =
+		altIcons ? ResourceManager.loadImage("images/alt-breakpoint-clear.png")
+				: ResourceManager.loadImage("images/breakpoint-clear.png");
+	ImageIcon ICON_ENABLE_BREAKPOINT =
+		altIcons ? ResourceManager.loadImage("images/alt-breakpoint-enable.png")
+				: ResourceManager.loadImage("images/breakpoint-enable.png");
 	ImageIcon ICON_ENABLE_ALL_BREAKPOINTS =
-		ResourceManager.loadImage("images/breakpoints-enable-all.png");
-	ImageIcon ICON_DISABLE_BREAKPOINT = ResourceManager.loadImage("images/breakpoint-disable.png");
+		altIcons ? ResourceManager.loadImage("images/alt-breakpoints-enable-all.png")
+				: ResourceManager.loadImage("images/breakpoints-enable-all.png");
+	ImageIcon ICON_DISABLE_BREAKPOINT =
+		altIcons ? ResourceManager.loadImage("images/alt-breakpoint-disable.png")
+				: ResourceManager.loadImage("images/breakpoint-disable.png");
 	ImageIcon ICON_DISABLE_ALL_BREAKPOINTS =
-		ResourceManager.loadImage("images/breakpoints-disable-all.png");
+		altIcons ? ResourceManager.loadImage("images/alt-breakpoints-disable-all.png")
+				: ResourceManager.loadImage("images/breakpoints-disable-all.png");
 	ImageIcon ICON_CLEAR_ALL_BREAKPOINTS =
-		ResourceManager.loadImage("images/breakpoints-clear-all.png");
+		altIcons ? ResourceManager.loadImage("images/alt-breakpoints-clear-all.png")
+				: ResourceManager.loadImage("images/breakpoints-clear-all.png");
 	ImageIcon ICON_MAKE_BREAKPOINTS_EFFECTIVE =
-		ResourceManager.loadImage("images/breakpoints-make-effective.png");
+		altIcons ? ResourceManager.loadImage("images/alt-breakpoints-make-effective.png")
+				: ResourceManager.loadImage("images/breakpoints-make-effective.png");
 
 	// TODO: Some overlay to indicate dynamic, or new icon altogether
 	ImageIcon ICON_LISTING = ResourceManager.loadImage("images/Browser.gif");
+	ImageIcon ICON_MEMORY_BYTES = ResourceManager.loadImage("images/binaryData.gif");
 	ImageIcon ICON_CONSOLE = ResourceManager.loadImage("images/console.png");
 	ImageIcon ICON_REGISTERS = ResourceManager.loadImage("images/registers.png");
 	ImageIcon ICON_STACK = ResourceManager.loadImage("images/stack.png");
@@ -132,11 +148,12 @@ public interface DebuggerResources {
 	//ResourceManager.loadImage("images/capture-memory.png");
 
 	// TODO: Draw an icon
+	ImageIcon ICON_MAP_IDENTICALLY = ResourceManager.loadImage("images/doubleArrow.png");
 	ImageIcon ICON_MAP_MODULES = ResourceManager.loadImage("images/modules.png");
 	ImageIcon ICON_MAP_SECTIONS = ICON_MAP_MODULES; // TODO
 	ImageIcon ICON_BLOCK = ICON_MAP_SECTIONS; // TODO
 	// TODO: Draw an icon
-	ImageIcon ICON_SELECT_ADDRESSES = ResourceManager.loadImage("images/NextSelectionBlock16.gif");
+	ImageIcon ICON_SELECT_ADDRESSES = ResourceManager.loadImage("images/text_align_justify.png");
 	// TODO: Draw an icon?
 	ImageIcon ICON_DATA_TYPES = ResourceManager.loadImage("images/dataTypes.png");
 	// TODO: Draw an icon?
@@ -154,6 +171,9 @@ public interface DebuggerResources {
 	ImageIcon ICON_IMPORT = ResourceManager.loadImage("images/imported_bookmark.gif");
 	ImageIcon ICON_BLANK = ResourceManager.loadImage("images/blank.png");
 	ImageIcon ICON_PACKAGE = ResourceManager.loadImage("images/debugger32.png");
+	ImageIcon ICON_EMULATE = ICON_PROCESS; // TODO
+	ImageIcon ICON_CONFIG = ResourceManager.loadImage("images/conf.png");
+	ImageIcon ICON_TOGGLE = ResourceManager.loadImage("images/system-switch-user.png");
 
 	HelpLocation HELP_PACKAGE = new HelpLocation("Debugger", "package");
 
@@ -178,6 +198,11 @@ public interface DebuggerResources {
 	ImageIcon ICON_PROVIDER_MAPPINGS = ICON_MAPPINGS;
 	HelpLocation HELP_PROVIDER_MAPPINGS = new HelpLocation(
 		PluginUtils.getPluginNameFromClass(DebuggerStaticMappingPlugin.class), HELP_ANCHOR_PLUGIN);
+
+	String TITLE_PROVIDER_MEMORY_BYTES = "Memory";
+	ImageIcon ICON_PROVIDER_MEMORY_BYTES = ICON_MEMORY_BYTES;
+	HelpLocation HELP_PROVIDER_MEMORY_BYTES = new HelpLocation(
+		PluginUtils.getPluginNameFromClass(DebuggerMemoryBytesPlugin.class), HELP_ANCHOR_PLUGIN);
 
 	String TITLE_PROVIDER_MODULES = "Modules";
 	ImageIcon ICON_PROVIDER_MODULES = ICON_MODULES;
@@ -240,9 +265,7 @@ public interface DebuggerResources {
 	Color DEFAULT_COLOR_BACKGROUND_ERROR = new Color(1.0f, 0.75f, 0.75f);
 
 	int PRIORITY_REGISTER_MARKER = 10;
-	// TODO: Is this the right name? Used by Location Tracking, which could be anything
-	// Close enough for now
-	String OPTION_NAME_COLORS_REGISTER_MARKERS = "Colors.Register Markers";
+	String OPTION_NAME_COLORS_TRACKING_MARKERS = "Colors.Tracking Markers";
 	Color DEFAULT_COLOR_REGISTER_MARKERS = new Color(0.75f, 0.875f, 0.75f);
 	ImageIcon ICON_REGISTER_MARKER = ResourceManager.loadImage("images/register-marker.png");
 
@@ -279,16 +302,21 @@ public interface DebuggerResources {
 	int PRIORITY_BREAKPOINT_INEFFECTIVE_D_MARKER = MarkerService.BREAKPOINT_PRIORITY;
 	int PRIORITY_BREAKPOINT_MIXED_ED_MARKER = MarkerService.BREAKPOINT_PRIORITY;
 	int PRIORITY_BREAKPOINT_MIXED_DE_MARKER = MarkerService.BREAKPOINT_PRIORITY;
+
 	ImageIcon ICON_BREAKPOINT_ENABLED_MARKER = ICON_ENABLE_BREAKPOINT;
 	ImageIcon ICON_BREAKPOINT_DISABLED_MARKER = ICON_DISABLE_BREAKPOINT;
 	ImageIcon ICON_BREAKPOINT_MIXED_ED_MARKER =
-		ResourceManager.loadImage("images/breakpoint-mixed-ed.png");
+		altIcons ? ResourceManager.loadImage("images/alt-breakpoint-mixed-ed.png")
+				: ResourceManager.loadImage("images/breakpoint-mixed-ed.png");
 	ImageIcon ICON_BREAKPOINT_MIXED_DE_MARKER =
-		ResourceManager.loadImage("images/breakpoint-mixed-de.png");
+		altIcons ? ResourceManager.loadImage("images/alt-breakpoint-mixed-de.png")
+				: ResourceManager.loadImage("images/breakpoint-mixed-de.png");
 	ImageIcon ICON_BREAKPOINT_INEFFECTIVE_E_MARKER =
-		ResourceManager.loadImage("images/breakpoint-ineffective-e.png");
+		altIcons ? ResourceManager.loadImage("images/alt-breakpoint-ineffective-e.png")
+				: ResourceManager.loadImage("images/breakpoint-ineffective-e.png");
 	ImageIcon ICON_BREAKPOINT_INEFFECTIVE_D_MARKER =
-		ResourceManager.loadImage("images/breakpoint-ineffective-d.png");
+		altIcons ? ResourceManager.loadImage("images/alt-breakpoint-ineffective-d.png")
+				: ResourceManager.loadImage("images/breakpoint-ineffective-d.png");
 
 	Icon ICON_UNIQUE_REF_READ =
 		new RotateIcon(ResourceManager.loadImage("images/cursor_arrow.gif"), 180); // TODO
@@ -467,6 +495,50 @@ public interface DebuggerResources {
 					.menuIcon(offer.getIcon())
 					.menuGroup(GROUP)
 					.helpLocation(new HelpLocation(helpOwner.getName(), HELP_ANCHOR));
+		}
+	}
+
+	interface EmulateProgramAction {
+		String NAME = "Emulate Program in new Trace";
+		String DESCRIPTION = "Emulate the current program in a new trace starting at the cursor";
+		Icon ICON = ICON_EMULATE;
+		String GROUP = GROUP_GENERAL;
+		String HELP_ANCHOR = "emulate_program";
+
+		static ActionBuilder builder(Plugin owner) {
+			String ownerName = owner.getName();
+			return new ActionBuilder(NAME, ownerName)
+					.description(DESCRIPTION)
+					.toolBarIcon(ICON)
+					.toolBarGroup(GROUP)
+					.menuPath(DebuggerPluginPackage.NAME, NAME)
+					.menuIcon(ICON)
+					.menuGroup(GROUP)
+					.popupMenuPath(NAME)
+					.popupMenuIcon(ICON)
+					.popupMenuGroup(GROUP)
+					.helpLocation(new HelpLocation(ownerName, HELP_ANCHOR));
+		}
+	}
+
+	interface EmulateAddThreadAction {
+		String NAME = "Add Emulated Thread to Trace";
+		String DESCRIPTION = "Add an emulated thread to the current trace starting here";
+		Icon ICON = ICON_THREAD;
+		String GROUP = GROUP_GENERAL;
+		String HELP_ANCHOR = "add_emulated_thread";
+
+		static ActionBuilder builder(Plugin owner) {
+			String ownerName = owner.getName();
+			return new ActionBuilder(NAME, ownerName)
+					.description(DESCRIPTION)
+					.menuPath(DebuggerPluginPackage.NAME, NAME)
+					.menuIcon(ICON)
+					.menuGroup(GROUP)
+					.popupMenuPath(NAME)
+					.popupMenuIcon(ICON)
+					.popupMenuGroup(GROUP)
+					.helpLocation(new HelpLocation(ownerName, HELP_ANCHOR));
 		}
 	}
 
@@ -875,10 +947,10 @@ public interface DebuggerResources {
 		}
 	}
 
-	interface EnableRegisterEditsAction {
+	interface EnableEditsAction {
 		String NAME = "Enable Edits";
-		String DESCRIPTION = "Enable editing of recorded register values";
-		String GROUP = "yyyy";
+		String DESCRIPTION = "Enable editing of recorded or live values";
+		String GROUP = "yyyy2";
 		Icon ICON = ResourceManager.loadImage("images/editbytes.gif");
 		String HELP_ANCHOR = "enable_edits";
 
@@ -1187,6 +1259,39 @@ public interface DebuggerResources {
 			super(NAME, owner.getName());
 			setDescription("Place enabled but ineffective breakpoints where possible");
 			setHelpLocation(new HelpLocation(owner.getName(), HELP_ANCHOR));
+		}
+	}
+
+	abstract class AbstractToggleAction extends DockingAction {
+		public static final String NAME = "Toggle";
+		public static final Icon ICON = ICON_TOGGLE;
+		public static final String HELP_ANCHOR = "toggle_option";
+
+		public static HelpLocation help(Plugin owner) {
+			return new HelpLocation(owner.getName(), HELP_ANCHOR);
+		}
+
+		public AbstractToggleAction(Plugin owner) {
+			super(NAME, owner.getName());
+			setDescription("Enable or disable an option");
+			setHelpLocation(new HelpLocation(owner.getName(), HELP_ANCHOR));
+		}
+	}
+
+	interface MapIdenticallyAction {
+		String NAME = "Map Identically";
+		String DESCRIPTION =
+			"Map the current trace to the current program using identical addresses";
+		Icon ICON = ICON_MAP_IDENTICALLY;
+		String GROUP = GROUP_MAPPING;
+		String HELP_ANCHOR = "map_identically";
+
+		static ActionBuilder builder(Plugin owner) {
+			String ownerName = owner.getName();
+			return new ActionBuilder(NAME, ownerName).description(DESCRIPTION)
+					.toolBarIcon(ICON)
+					.toolBarGroup(GROUP)
+					.helpLocation(new HelpLocation(ownerName, HELP_ANCHOR));
 		}
 	}
 
@@ -1734,4 +1839,5 @@ public interface DebuggerResources {
 			action.setSelected(value);
 		}
 	}
+
 }

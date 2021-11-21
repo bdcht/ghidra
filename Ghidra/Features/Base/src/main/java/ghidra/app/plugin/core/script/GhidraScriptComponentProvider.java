@@ -549,8 +549,12 @@ public class GhidraScriptComponentProvider extends ComponentProviderAdapter {
 				return;
 			}
 
+			// Create user script directory if it doesn't exist
+			File userScriptsDir = new File(GhidraScriptUtil.USER_SCRIPTS_DIR);
+			FileUtilities.checkedMkdirs(userScriptsDir);
+
 			ResourceFile newFile = GhidraScriptUtil.createNewScript(provider,
-				new ResourceFile(GhidraScriptUtil.USER_SCRIPTS_DIR), getScriptDirectories());
+				new ResourceFile(userScriptsDir), getScriptDirectories());
 			SaveDialog dialog = new SaveNewScriptDialog(getComponent(), "New Script", this, newFile,
 				actionManager.getNewHelpLocation());
 			if (dialog.isCancelled()) {
@@ -608,7 +612,9 @@ public class GhidraScriptComponentProvider extends ComponentProviderAdapter {
 	void runScript(ResourceFile scriptFile, TaskListener listener) {
 		lastRunScript = scriptFile;
 		GhidraScript script = doGetScriptInstance(scriptFile);
-		doRunScript(script, listener);
+		if (script != null) {
+			doRunScript(script, listener);
+		}
 	}
 
 	private GhidraScript doGetScriptInstance(ResourceFile scriptFile) {

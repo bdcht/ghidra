@@ -47,6 +47,8 @@ public class FunctionSignatureDecompilerHover extends AbstractConfigurableHover
 	private static final String NAME = "Function Signature Display";
 	private static final String DESCRIPTION =
 		"Show function signatures when hovering over a function name.";
+
+	// note: this is relative to other DecompilerHovers; a higher priority gets called first
 	private static final int PRIORITY = 20;
 
 	protected FunctionSignatureDecompilerHover(PluginTool tool) {
@@ -84,6 +86,9 @@ public class FunctionSignatureDecompilerHover extends AbstractConfigurableHover
 		if (token instanceof ClangFuncNameToken) {
 
 			Function function = DecompilerUtils.getFunction(program, (ClangFuncNameToken) token);
+			if (function == null) {
+				return null; // no function in program; maybe bad address
+			}
 			String content = ToolTipUtils.getToolTipText(function, false);
 			return createTooltipComponent(content);
 		}

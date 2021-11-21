@@ -67,18 +67,53 @@ public class GdbModelTargetProcessMemory
 		synchronized (this) {
 			regions =
 				byStart.values().stream().map(this::getTargetRegion).collect(Collectors.toList());
+			if (regions.isEmpty() && valid) {
+				Map<BigInteger, GdbMemoryMapping> defaultMap =
+					new HashMap<BigInteger, GdbMemoryMapping>();
+				AddressSet addressSet = impl.getAddressFactory().getAddressSet();
+				BigInteger start = addressSet.getMinAddress().getOffsetAsBigInteger();
+				BigInteger end = addressSet.getMaxAddress().getOffsetAsBigInteger();
+				if (end.longValue() < 0) {
+					BigInteger split = BigInteger.valueOf(Long.MAX_VALUE);
+					GdbMemoryMapping lmem = new GdbMemoryMapping(start, split,
+						split.subtract(start), start.subtract(start), "defaultLow");
+					defaultMap.put(start, lmem);
+					split = split.add(BigInteger.valueOf(1));
+					GdbMemoryMapping hmem = new GdbMemoryMapping(split, end,
+						end.subtract(split), split.subtract(split), "defaultHigh");
+					defaultMap.put(split, hmem);
+				}
+				else {
+					GdbMemoryMapping mem = new GdbMemoryMapping(start, end,
+						end.subtract(start), start.subtract(start), "default");
+					defaultMap.put(start, mem);
+				}
+				regions =
+					defaultMap.values()
+							.stream()
+							.map(this::getTargetRegion)
+							.collect(Collectors.toList());
+			}
 		}
+
 		setElements(regions, "Refreshed");
 	}
 
 	@Override
-	public CompletableFuture<Void> requestElements(boolean refresh) {
+	protected CompletableFuture<Void> requestElements(boolean refresh) {
 		// Can't use refresh getKnownMappings is only populated by listMappings
+		return doRefresh();
+	}
+	
+	protected CompletableFuture<Void> doRefresh() {
 		if (inferior.getPid() == null) {
 			setElements(List.of(), "Refreshed (while no process)");
 			return AsyncUtils.NIL;
 		}
-		return inferior.listMappings().thenAccept(this::updateUsingMappings);
+		return inferior.listMappings().exceptionally(ex -> {
+			Msg.error(this, "Could not list regions. Using default.");
+			return Map.of(); // empty map will be replaced with default
+		}).thenAccept(this::updateUsingMappings);
 	}
 
 	protected synchronized GdbModelTargetMemoryRegion getTargetRegion(GdbMemoryMapping mapping) {
@@ -150,13 +185,22 @@ public class GdbModelTargetProcessMemory
 		});
 	}
 
+	// TODO: Seems this is only called when sco.getState() == STOPPED.
+	// Maybe should name it such
 	public CompletableFuture<Void> stateChanged(GdbStateChangeRecord sco) {
-		return requestElements(false).thenCompose(__ -> {
+		return doRefresh().thenCompose(__ -> {
 			AsyncFence fence = new AsyncFence();
 			for (GdbModelTargetMemoryRegion modelRegion : regionsByStart.values()) {
 				fence.include(modelRegion.stateChanged(sco));
 			}
 			return fence.ready();
+		});
+	}
+
+	protected CompletableFuture<?> refreshInternal() {
+		return doRefresh().exceptionally(ex -> {
+			impl.reportError(this, "Problem refreshing inferior's memory regions", ex);
+			return null;
 		});
 	}
 }

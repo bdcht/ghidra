@@ -26,12 +26,12 @@ public enum AddressOfPcodeArithmetic implements PcodeArithmetic<Address> {
 	INSTANCE;
 
 	@Override
-	public Address unaryOp(UnaryOpBehavior op, int sizeout, int sizein, Address in1) {
+	public Address unaryOp(UnaryOpBehavior op, int sizeout, int sizein1, Address in1) {
 		return null;
 	}
 
 	@Override
-	public Address binaryOp(BinaryOpBehavior op, int sizeout, int sizein, Address in1,
+	public Address binaryOp(BinaryOpBehavior op, int sizeout, int sizein1, Address in1, int sizein2,
 			Address in2) {
 		return null;
 	}
@@ -42,7 +42,7 @@ public enum AddressOfPcodeArithmetic implements PcodeArithmetic<Address> {
 	}
 
 	@Override
-	public Address fromConst(BigInteger value, int size) {
+	public Address fromConst(BigInteger value, int size, boolean isContextreg) {
 		return null;
 	}
 
@@ -52,7 +52,7 @@ public enum AddressOfPcodeArithmetic implements PcodeArithmetic<Address> {
 	}
 
 	@Override
-	public BigInteger toConcrete(Address value) {
+	public BigInteger toConcrete(Address value, boolean isContextreg) {
 		throw new AssertionError("Should not attempt to concretize 'address of'");
 	}
 }

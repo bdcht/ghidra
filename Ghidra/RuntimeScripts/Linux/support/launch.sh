@@ -86,7 +86,15 @@ if [[ ${INDEX} -lt 5 ]]; then
 	exit 1
 fi
 
+# Sets SUPPORT_DIR to the directory that contains this file (launch.sh)
 SUPPORT_DIR="${0%/*}"
+
+# Ensure Ghidra path doesn't contain illegal characters
+if [[ "$SUPPORT_DIR" = *"!"* ]]; then
+	echo "Ghidra path cannot contain a \"!\" character."
+	exit 1
+fi
+
 if [ -f "${SUPPORT_DIR}/launch.properties" ]; then
 
 	# Production Environment
@@ -172,7 +180,7 @@ else
 fi
 
 if [ "${BACKGROUND}" = true ]; then
-	eval "\"${JAVA_CMD}\" ${VMARG_LIST} -showversion -cp \"${CPATH}\" ghidra.GhidraLauncher ${CLASSNAME} ${ARGS[@]}" &>/dev/null &
+	eval "\"${JAVA_CMD}\" ${VMARG_LIST} -showversion -cp \"${CPATH}\" ghidra.Ghidra ${CLASSNAME} ${ARGS[@]}" &>/dev/null &
 	
 	# If our process dies immediately, output something so the user knows to run in debug mode.
 	# Otherwise they'll never see any error output from background mode.
@@ -185,7 +193,7 @@ if [ "${BACKGROUND}" = true ]; then
 	fi
 	exit 0
 else
-	eval "\"${JAVA_CMD}\" ${VMARG_LIST} -showversion -cp \"${CPATH}\" ghidra.GhidraLauncher ${CLASSNAME} ${ARGS[@]}"
+	eval "\"${JAVA_CMD}\" ${VMARG_LIST} -showversion -cp \"${CPATH}\" ghidra.Ghidra ${CLASSNAME} ${ARGS[@]}"
 	exit $?
 fi
 

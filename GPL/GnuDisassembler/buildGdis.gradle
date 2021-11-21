@@ -1,17 +1,12 @@
 /* ###
  * IP: Public Domain
  */
-/*******************************************************************************************
- * build.gradle file that applies this script must define two properties
- *     1) binutilsLocation  - the folder where the original binutils.zip lives
- *     2) binutilsPrebuiltPath - the folder where the custom prebuilt binutils lives or will be built to
- *******************************************************************************************/
 
 defaultTasks 'assemble'
 
-ext.supportedPlatforms = ['osx64', 'linux64']
+ext.supportedPlatforms = ['mac_x86_64', 'mac_arm_64', 'linux_x86_64', 'linux_arm_64']
 
-ext.binutilsResource = new File("${binutilsLocation}/${binutils}.tar.bz2")
+ext.binutilsResource = new File("${projectDir}/${binutils}.tar.bz2")
 
 def binutilsUnpackDir = file("${project.buildDir}/${binutils}/")
 
@@ -19,23 +14,10 @@ def binutilsUnpackDir = file("${project.buildDir}/${binutils}/")
  *
  * For each supported platform build the following tasks:
  *        buildBinutils_<platform>			builds binutils for the platform
- *        packageBinutilsDev_<platform>      creates the built bundle of stuf we need to build gdis
- *        unpackBinutilsPrebuilt_<platform>  unpacks the built bundle to be used to build gdis
  *
  ******************************************************************************************/
  
 model {
-	platforms {
-		linux64 {
-			architecture 'x86_64'
-			operatingSystem 'linux'
-		}
-		osx64 {
-			architecture 'x86_64'
-			operatingSystem 'osx'
-		}
-	}	
-	
 	components {
 		
 		gdis(NativeExecutableSpec) {
@@ -63,11 +45,17 @@ model {
 		} 
 	} 	
 	
-	tasks.compileGdisOsx64ExecutableGdisC {
-		dependsOn 'copyBinutilsArtifcats_osx64'
+	tasks.compileGdisMac_x86_64ExecutableGdisC {
+		dependsOn 'copyBinutilsArtifcats_mac_x86_64'
 	}
-	tasks.compileGdisLinux64ExecutableGdisC {
-		dependsOn 'copyBinutilsArtifcats_linux64'
+	tasks.compileGdisLinux_x86_64ExecutableGdisC {
+		dependsOn 'copyBinutilsArtifcats_linux_x86_64'
+	}
+	tasks.compileGdisMac_arm_64ExecutableGdisC {
+		dependsOn 'copyBinutilsArtifcats_mac_arm_64'
+	}
+	tasks.compileGdisLinux_arm_64ExecutableGdisC {
+		dependsOn 'copyBinutilsArtifcats_linux_arm_64'
 	}
 	
 }

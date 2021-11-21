@@ -64,6 +64,11 @@ public interface ToolConstants extends DockingToolConstants {
 	public static final String MENU_ANALYSIS = "&Analysis";
 
 	/**
+	 * Used when placing an action in the "Graph" menu of the tool
+	 */
+	public static final String MENU_GRAPH = "&Graph";
+
+	/**
 	 *  Used when placing an action in the "Project" menu of the tool
 	 */
 	public static final String MENU_PROJECT = "&Project";
@@ -92,16 +97,21 @@ public interface ToolConstants extends DockingToolConstants {
 	public static final String TOOL_OWNER = "Tool";
 
 	/**
-	 * This is used when many actions wish to share a key binding.  
+	 * This is used when many actions wish to share a key binding.
 	 * 
 	 * @see KeyBindingType#SHARED
 	 */
 	public static final String SHARED_OWNER = "Shared";
 
 	/**
-	 * Name of options for a tool
+	 * Tool options name
 	 */
 	public static final String TOOL_OPTIONS = "Tool";
+
+	/**
+	 * Graph options name
+	 */
+	public static final String GRAPH_OPTIONS = "Graph";
 
 	/**
 	 * Name of the help topic for "About" domain objects and Ghidra

@@ -100,6 +100,7 @@ public class MachoProgramBuilder {
 		MachoProgramBuilder machoProgramBuilder =
 			new MachoProgramBuilder(program, provider, fileBytes, log, monitor);
 		machoProgramBuilder.build();
+		machoProgramBuilder.doRelocations();
 	}
 
 	protected void build() throws Exception {
@@ -111,6 +112,7 @@ public class MachoProgramBuilder {
 		monitor.setCancelEnabled(true);
 
 		setImageBase();
+		processEncryption();
 		processEntryPoint();
 		processMemoryBlocks(machoHeader, provider.getName(), true, true);
 		processUnsupportedLoadCommands();
@@ -122,7 +124,10 @@ public class MachoProgramBuilder {
 		renameObjMsgSendRtpSymbol();
 		processUndefinedSymbols();
 		processAbsoluteSymbols();
-		processDyldInfo();
+	}
+
+	protected void doRelocations() throws Exception {
+		processDyldInfo(true);
 		markupHeaders(machoHeader, setupHeaderAddr(machoHeader.getAllSegments()));
 		markupSections();
 		processProgramVars();
@@ -149,6 +154,17 @@ public class MachoProgramBuilder {
 		}
 		else {
 			program.setImageBase(space.getAddress(0), true);
+		}
+	}
+	
+	private void processEncryption() throws Exception {
+		monitor.setMessage("Processing encryption...");
+		for (EncryptedInformationCommand cmd : machoHeader
+				.getLoadCommands(EncryptedInformationCommand.class)) {
+			if (cmd.getCryptID() != 0) {
+				log.appendMsg(String.format("ENCRYPTION DETECTED: (file offset 0x%x, size 0x%x)",
+					cmd.getCryptOffset(), cmd.getCryptSize()));
+			}
 		}
 	}
 
@@ -393,6 +409,11 @@ public class MachoProgramBuilder {
 					continue;
 				}
 				if (symbol.isTypeUndefined()) {
+					continue;
+				}
+
+				// is a re-exported symbol, will be added as an external later
+				if (symbol.isIndirect()) {
 					continue;
 				}
 
@@ -684,7 +705,7 @@ public class MachoProgramBuilder {
 		}
 	}
 
-	private void processDyldInfo() {
+	protected void processDyldInfo(boolean doClassic) {
 		List<DyldInfoCommand> commands = machoHeader.getLoadCommands(DyldInfoCommand.class);
 		for (DyldInfoCommand command : commands) {
 			if (command.getBindSize() > 0) {
@@ -706,6 +727,10 @@ public class MachoProgramBuilder {
 			//        log.appendException(e);
 			//    }
 			//}
+		}
+
+		if (!doClassic) {
+			return;
 		}
 
 		//then we are use the old school binding technique.
@@ -850,7 +875,7 @@ public class MachoProgramBuilder {
 	 * @param segments A {@link Collection} of {@link SegmentCommand Mach-O segments}
 	 * @return The {@link Address} of {@link MachHeader} in memory
 	 */
-	private Address setupHeaderAddr(Collection<SegmentCommand> segments)
+	protected Address setupHeaderAddr(Collection<SegmentCommand> segments)
 			throws AddressOverflowException {
 		Address headerAddr = null;
 		long lowestFileOffset = Long.MAX_VALUE;
@@ -872,7 +897,7 @@ public class MachoProgramBuilder {
 		return headerBlock.getStart();
 	}
 
-	private void markupSections() throws Exception {
+	protected void markupSections() throws Exception {
 
 		monitor.setMessage("Processing section markup...");
 
@@ -945,7 +970,7 @@ public class MachoProgramBuilder {
 	/**
 	 * See crt.c from opensource.apple.com
 	 */
-	private void processProgramVars() {
+	protected void processProgramVars() {
 		if (program.getLanguage().getProcessor() == Processor
 				.findOrPossiblyCreateProcessor("PowerPC")) {
 			return;
@@ -1019,7 +1044,7 @@ public class MachoProgramBuilder {
 		}
 	}
 
-	private void loadSectionRelocations() {
+	protected void loadSectionRelocations() {
 
 		monitor.setMessage("Processing relocation table...");
 
@@ -1030,7 +1055,7 @@ public class MachoProgramBuilder {
 			if (monitor.isCancelled()) {
 				return;
 			}
-			
+
 			MemoryBlock sectionMemoryBlock = getMemoryBlock(section);
 			if (sectionMemoryBlock == null) {
 				if (section.getNumberOfRelocations() > 0) {
@@ -1085,7 +1110,7 @@ public class MachoProgramBuilder {
 							new long[] { relocationInfo.getValue(), relocationInfo.getLength(),
 								relocationInfo.isPcRelocated() ? 1 : 0,
 								relocationInfo.isExternal() ? 1 : 0,
-								relocationInfo.isScattered() ? 1 : 0},
+								relocationInfo.isScattered() ? 1 : 0 },
 							origBytes, relocation.getTargetDescription());
 			}
 		}
@@ -1097,7 +1122,7 @@ public class MachoProgramBuilder {
 		log.appendMsg(message);
 	}
 
-	private void loadExternalRelocations() {
+	protected void loadExternalRelocations() {
 
 		monitor.setMessage("Processing external relocations...");
 
@@ -1118,7 +1143,7 @@ public class MachoProgramBuilder {
 		}
 	}
 
-	private void loadLocalRelocations() {
+	protected void loadLocalRelocations() {
 
 		monitor.setMessage("Processing local relocations...");
 
@@ -1225,7 +1250,11 @@ public class MachoProgramBuilder {
 				length = listing.getDataAt(address).getLength();
 			}
 			catch (Exception e) {
-				log.appendException(e);
+				// don't worry about exceptions
+				// may have already been created, by relocation, or chain pointers
+				if (!(datatype instanceof Pointer)) {
+					log.appendException(e);
+				}
 				return;
 			}
 			if (datatype instanceof Pointer) {

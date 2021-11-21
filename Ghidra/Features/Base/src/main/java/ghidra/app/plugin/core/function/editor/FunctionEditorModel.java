@@ -17,8 +17,6 @@ package ghidra.app.plugin.core.function.editor;
 
 import java.util.*;
 
-import javax.swing.SwingUtilities;
-
 import ghidra.app.services.DataTypeManagerService;
 import ghidra.app.util.cparser.C.ParseException;
 import ghidra.app.util.parser.FunctionSignatureParser;
@@ -30,8 +28,7 @@ import ghidra.program.model.listing.Function.FunctionUpdateType;
 import ghidra.program.model.pcode.Varnode;
 import ghidra.program.model.symbol.SourceType;
 import ghidra.program.model.symbol.SymbolUtilities;
-import ghidra.util.Msg;
-import ghidra.util.SystemUtilities;
+import ghidra.util.*;
 import ghidra.util.exception.*;
 
 public class FunctionEditorModel {
@@ -84,14 +81,6 @@ public class FunctionEditorModel {
 	void setModelChangeListener(ModelChangeListener listener) {
 		this.listener = listener;
 	}
-
-//	public FunctionEditorModel(DataTypeManagerService service, Function function,
-//			ModelChangeListener listener, FunctionDefinitionDataType functionDef,
-//			String callingConv) {
-//		this(service, function, listener);
-//		callingConventionName = callingConv;
-//		setFunctionData(functionDef);
-//	}
 
 	// Returns the current calling convention or the default calling convention if current unknown
 	private PrototypeModel getEffectiveCallingConvention() {
@@ -193,18 +182,9 @@ public class FunctionEditorModel {
 		this.modelChanged |= functionDataChanged;
 		validate();
 		if (listener != null) {
-			SwingUtilities.invokeLater(() -> listener.dataChanged());
+			Swing.runLater(() -> listener.dataChanged());
 		}
 	}
-
-//	private void notifyParsingModeChanged() {
-//		SwingUtilities.invokeLater(new Runnable() {
-//			@Override
-//			public void run() {
-//				listener.parsingModeChanged();
-//			}
-//		});
-//	}
 
 	private void validate() {
 		statusText = "";
@@ -237,7 +217,7 @@ public class FunctionEditorModel {
 			returnType = ((TypeDef) returnType).getBaseDataType();
 		}
 		if (storageSize > 0 && (returnType instanceof AbstractFloatDataType)) {
-			return true; // dont constrain float storage size
+			return true; // don't constrain float storage size
 		}
 
 		int returnDataTypeSize = returnType.getLength();
@@ -388,7 +368,7 @@ public class FunctionEditorModel {
 
 	private boolean isValidParamType(ParamInfo param) {
 		DataType dataType = param.getDataType();
-		if (dataType.isEquivalent(DataType.VOID)) {
+		if (dataType.isEquivalent(VoidDataType.dataType)) {
 			statusText = "\"void\" is not allowed as a parameter datatype.";
 			return false;
 		}
@@ -406,7 +386,7 @@ public class FunctionEditorModel {
 	}
 
 	public String getFunctionSignatureTextFromModel() {
-		StringBuffer buf = new StringBuffer();
+		StringBuilder buf = new StringBuilder();
 		buf.append(returnInfo.getFormalDataType().getName()).append(" ");
 		buf.append(getNameString());
 		buf.append(" (");
@@ -460,8 +440,8 @@ public class FunctionEditorModel {
 		return returnInfo.getFormalDataType();
 	}
 
-	public void setFormalReturnType(DataType formalReturnType) {
-		setParameterFormalDataType(returnInfo, formalReturnType);
+	public boolean setFormalReturnType(DataType formalReturnType) {
+		return setParameterFormalDataType(returnInfo, formalReturnType);
 	}
 
 	public String getStatusText() {
@@ -495,7 +475,6 @@ public class FunctionEditorModel {
 	 * Get the effective function to which changes will be made.  This
 	 * will be the same as function unless it is a thunk in which case
 	 * the returned function will be the ultimate non-thunk function.
-	 * @param function
 	 * @return non-thunk function
 	 */
 	private Function getAffectiveFunction() {
@@ -663,7 +642,8 @@ public class FunctionEditorModel {
 				try {
 					if (autoParamCount < oldAutoCount) {
 						if (oldParams.get(
-							autoParamCount).getStorage().getAutoParameterType() != storage.getAutoParameterType()) {
+							autoParamCount).getStorage().getAutoParameterType() != storage
+									.getAutoParameterType()) {
 							adjustSelectionForRowRemoved(i);
 						}
 					}
@@ -795,18 +775,20 @@ public class FunctionEditorModel {
 		notifyDataChanged();
 	}
 
-	public void setParameterFormalDataType(ParamInfo param, DataType formalDataType) {
+	public boolean setParameterFormalDataType(ParamInfo param, DataType formalDataType) {
 		boolean isReturn = (param.getOrdinal() == Parameter.RETURN_ORIDINAL);
 		try {
 			formalDataType = VariableUtilities.checkDataType(formalDataType, isReturn, 0, program);
 		}
 		catch (InvalidInputException e) {
 			Msg.showError(this, null, "Invalid Data Type", e.getMessage());
-			return;
+			return false;
 		}
+
 		if (formalDataType.equals(param.getFormalDataType())) {
-			return;
+			return true;
 		}
+
 		param.setFormalDataType(formalDataType.clone(program.getDataTypeManager()));
 		if (allowCustomStorage) {
 			if (isReturn && (formalDataType instanceof VoidDataType)) {
@@ -828,6 +810,7 @@ public class FunctionEditorModel {
 			updateParameterAndReturnStorage();
 		}
 		notifyDataChanged();
+		return true;
 	}
 
 	private void adjustStorageSize(ParamInfo param, VariableStorage curStorage, int newSize) {
@@ -1180,6 +1163,10 @@ public class FunctionEditorModel {
 		setSignatureFieldText(getFunctionSignatureTextFromModel());
 	}
 
+	public boolean hasChanges() {
+		return !Objects.equals(getFunctionSignatureTextFromModel(), signatureFieldText);
+	}
+
 	public void parseSignatureFieldText() throws ParseException, CancelledException {
 		FunctionSignatureParser parser =
 			new FunctionSignatureParser(program.getDataTypeManager(), dataTypeManagerService);
@@ -1196,7 +1183,7 @@ public class FunctionEditorModel {
 	/**
 	 * Sets the change state of the model. Normally, the model sets the modelChanged variable to true
 	 * every time something is changed. This provides a way to for applications to make some initial changes
-	 * but make the dialog think that nothing has changed.  
+	 * but make the dialog think that nothing has changed.
 	 * @param b the  new changeState for this model
 	 */
 	public void setModelChanged(boolean b) {

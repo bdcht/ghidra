@@ -4,9 +4,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * 
  *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,6 +23,7 @@ import docking.action.DockingAction;
 import docking.action.ToggleDockingAction;
 import docking.action.builder.ActionBuilder;
 import docking.action.builder.ToggleActionBuilder;
+import docking.tool.ToolConstants;
 import ghidra.app.CorePluginPackage;
 import ghidra.app.events.ProgramLocationPluginEvent;
 import ghidra.app.events.ProgramSelectionPluginEvent;
@@ -34,6 +35,7 @@ import ghidra.framework.options.*;
 import ghidra.framework.plugintool.PluginInfo;
 import ghidra.framework.plugintool.PluginTool;
 import ghidra.framework.plugintool.util.PluginStatus;
+import ghidra.graph.*;
 import ghidra.program.model.block.CodeBlockModel;
 import ghidra.service.graph.GraphDisplayProvider;
 import ghidra.util.HelpLocation;
@@ -44,7 +46,7 @@ import ghidra.util.task.TaskLauncher;
 /**
  * Plugin for generating program graphs. It uses the GraphServiceBroker to consume/display
  * the graphs that it generates. This plugin generates several different types of program graphs.
- * Both the "Block flow" and "code flow" actions generate graph of basic block flows. The only
+ * Both the "block flow" and "code flow" actions will generate a graph of basic block flows. The only
  * difference is that the "code flow" action generates a graph that
  * displays the assembly for for each basic block, whereas the "block flow" action generates a graph
  * that displays the symbol or address at the start of the basic block.  This plugin also
@@ -62,19 +64,26 @@ import ghidra.util.task.TaskLauncher;
 			+ "Once a graph is created, it uses the currenly selected graph output to display "
 			+ "or export the graph.  The plugin "
 			+ "also provides event handling to facilitate interaction between "
-			+ "the graph and the  tool.",
+			+ "the graph and the tool.",
 	servicesRequired = { GoToService.class, BlockModelService.class, GraphDisplayBroker.class },
 	eventsProduced = { ProgramLocationPluginEvent.class, ProgramSelectionPluginEvent.class }
 )
 //@formatter:on
 public class ProgramGraphPlugin extends ProgramPlugin
 		implements OptionsChangeListener, BlockModelServiceListener, GraphDisplayBrokerListener {
-	private static final String MAX_CODE_LINES_DISPLAYED = "Max Code Lines Displayed";
-	private static final String REUSE_GRAPH = "Reuse Graph";
-	private static final String GRAPH_ENTRY_POINT_NEXUS = "Graph Entry Point Nexus";
-	private static final String FORCE_LOCATION_DISPLAY_OPTION = "Force Location Visible on Graph";
-	private static final String MAX_DEPTH_OPTION = "Max Reference Depth";
-	public static final String MENU_GRAPH = "&Graph";
+
+	private static final String PLUGIN_NAME = "Program Graph";
+
+	private static final String OPTIONS_PREFIX = PLUGIN_NAME + Options.DELIMITER;
+	private static final String MAX_CODE_LINES_DISPLAYED =
+		OPTIONS_PREFIX + "Max Code Lines Displayed";
+	private static final String REUSE_GRAPH = OPTIONS_PREFIX + "Reuse Graph";
+	private static final String GRAPH_ENTRY_POINT_NEXUS =
+		OPTIONS_PREFIX + "Graph Entry Point Nexus";
+	private static final String FORCE_LOCATION_DISPLAY_OPTION =
+		OPTIONS_PREFIX + "Force Location Visible on Graph";
+	private static final String MAX_DEPTH_OPTION = OPTIONS_PREFIX + "Max Reference Depth";
+	public static final String MENU_GRAPH = ToolConstants.MENU_GRAPH;
 
 	private BlockModelService blockModelService;
 
@@ -98,27 +107,37 @@ public class ProgramGraphPlugin extends ProgramPlugin
 	public ProgramGraphPlugin(PluginTool tool) {
 		super(tool, true, true);
 		intializeOptions();
+		registerProgramFlowGraphDisplayOptionsWithTool();
+	}
+
+	private void registerProgramFlowGraphDisplayOptionsWithTool() {
+		ProgramGraphDisplayOptions displayOptions =
+			new ProgramGraphDisplayOptions(new BlockFlowGraphType(), null);
+
+		// this will register Program Flow Graph Type options with the tool
+		HelpLocation help = new HelpLocation(getName(), "Program Graphs Display Options");
+		displayOptions.registerOptions(tool.getOptions("Graph"), help);
 	}
 
 	private void intializeOptions() {
 		HelpLocation help = new HelpLocation(getName(), "Graph_Option");
-		ToolOptions options = tool.getOptions("Graph");
+		ToolOptions options = tool.getOptions(ToolConstants.GRAPH_OPTIONS);
 
 		options.registerOption(MAX_CODE_LINES_DISPLAYED, codeLimitPerBlock, help,
 			"Specifies the maximum number of instructions to display in each graph " +
 				"node in a Code Flow Graph.");
 
 		options.registerOption(REUSE_GRAPH, false, help,
-			"Determines whether the graph will reuse the active graph window when displaying graphs.");
+			"Determines whether the graph will reuse the active graph window when displaying " +
+				"graphs.");
 
 		options.registerOption(GRAPH_ENTRY_POINT_NEXUS, false, help,
-			"Add a dummy node at the root of the graph and adds dummy edges to each node that has " +
-				"no incoming edges.");
+			"Add a dummy node at the root of the graph and adds dummy edges to each node that " +
+				"has no incoming edges.");
 
 		options.registerOption(FORCE_LOCATION_DISPLAY_OPTION, false, help,
-			"Specifies whether or not " +
-				"graph displays should force the visible graph to pan and/or scale to ensure that focused " +
-				"locations are visible.");
+			"Specifies whether or not graph displays should force the visible graph to pan " +
+				"and/or scale to ensure that focused locations are visible.");
 		options.registerOption(MAX_DEPTH_OPTION, 1, help,
 			"Specifies max depth of data references to graph (0 for no limit)");
 
@@ -149,18 +168,6 @@ public class ProgramGraphPlugin extends ProgramPlugin
 		}
 	}
 
-	/**
-	 * Notification that an option changed.
-	 *
-	 * @param options
-	 *            options object containing the property that changed
-	 * @param optionName
-	 *            name of option that changed
-	 * @param oldValue
-	 *            old value of the option
-	 * @param newValue
-	 *            new value of the option
-	 */
 	@Override
 	public void optionsChanged(ToolOptions options, String optionName, Object oldValue,
 			Object newValue) {
@@ -181,21 +188,23 @@ public class ProgramGraphPlugin extends ProgramPlugin
 
 	private void createActions() {
 
-		new ActionBuilder("Graph Block Flow", getName()).menuPath(MENU_GRAPH, "&Block Flow")
-				.menuGroup("Graph", "A")
+		new ActionBuilder("Graph Block Flow", getName())
+				.menuPath(MENU_GRAPH, "&Block Flow")
+				.menuGroup(MENU_GRAPH, "A")
 				.onAction(c -> graphBlockFlow())
 				.enabledWhen(this::canGraph)
 				.buildAndInstall(tool);
 
-		new ActionBuilder("Graph Code Flow", getName()).menuPath(MENU_GRAPH, "C&ode Flow")
-				.menuGroup("Graph", "B")
+		new ActionBuilder("Graph Code Flow", getName())
+				.menuPath(MENU_GRAPH, "C&ode Flow")
+				.menuGroup(MENU_GRAPH, "B")
 				.onAction(c -> graphCodeFlow())
 				.enabledWhen(this::canGraph)
 				.buildAndInstall(tool);
 
 		new ActionBuilder("Graph Calls Using Default Model", getName())
 				.menuPath(MENU_GRAPH, "&Calls")
-				.menuGroup("Graph", "C")
+				.menuGroup(MENU_GRAPH, "C")
 				.onAction(c -> graphSubroutines())
 				.enabledWhen(this::canGraph)
 				.buildAndInstall(tool);
@@ -228,7 +237,8 @@ public class ProgramGraphPlugin extends ProgramPlugin
 				.buildAndInstall(tool);
 
 		reuseGraphAction =
-			new ToggleActionBuilder("Reuse Graph", getName()).menuPath(MENU_GRAPH, "Reuse Graph")
+			new ToggleActionBuilder("Reuse Graph", getName())
+					.menuPath(MENU_GRAPH, "Reuse Graph")
 					.menuGroup("Graph Options")
 					.selected(reuseGraph)
 					.onAction(c -> reuseGraph = reuseGraphAction.isSelected())
@@ -236,7 +246,8 @@ public class ProgramGraphPlugin extends ProgramPlugin
 					.buildAndInstall(tool);
 
 		appendGraphAction =
-			new ToggleActionBuilder("Append Graph", getName()).menuPath(MENU_GRAPH, "Append Graph")
+			new ToggleActionBuilder("Append Graph", getName())
+					.menuPath(MENU_GRAPH, "Append Graph")
 					.menuGroup("Graph Options")
 					.selected(false)
 					.onAction(c -> updateAppendAndReuseGraph())
@@ -307,19 +318,19 @@ public class ProgramGraphPlugin extends ProgramPlugin
 	}
 
 	private void graphBlockFlow() {
-		graph("Block Flow Graph", blockModelService.getActiveBlockModelName(), false);
+		graph(new BlockFlowGraphType(), blockModelService.getActiveBlockModelName());
 	}
 
 	private void graphCodeFlow() {
-		graph("Code Flow Graph", blockModelService.getActiveBlockModelName(), true);
+		graph(new CodeFlowGraphType(), blockModelService.getActiveBlockModelName());
 	}
 
 	private void graphSubroutines() {
-		graph("Call Graph", blockModelService.getActiveSubroutineModelName(), false);
+		graph(new CallGraphType(), blockModelService.getActiveSubroutineModelName());
 	}
 
 	private void graphSubroutinesUsing(String modelName) {
-		graph("Call Graph (" + modelName + ")", modelName, false);
+		graph(new CallGraphType(), modelName);
 	}
 
 	private void graphDataReferences() {
@@ -334,11 +345,12 @@ public class ProgramGraphPlugin extends ProgramPlugin
 		graphData(DataReferenceGraph.Directions.FROM_ONLY);
 	}
 
-	private void graph(String actionName, String modelName, boolean showCode) {
+	private void graph(ProgramGraphType graphType, String modelName) {
 		try {
 			CodeBlockModel model =
 				blockModelService.getNewModelByName(modelName, currentProgram, true);
-			BlockGraphTask task = new BlockGraphTask(actionName, graphEntryPointNexus, showCode,
+			BlockGraphTask task =
+				new BlockGraphTask(graphType, graphEntryPointNexus,
 				reuseGraph, appendToGraph, tool, currentSelection, currentLocation, model,
 				defaultGraphService);
 			task.setCodeLimitPerBlock(codeLimitPerBlock);

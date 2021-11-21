@@ -487,7 +487,7 @@ public interface DebuggerStaticMappingService {
 	}
 
 	/**
-	 * A {@code (shift,view)} pair for describing sets of mapped addresses
+	 * <<<<<<< HEAD A {@code (shift,view)} pair for describing sets of mapped addresses
 	 */
 	public class ShiftAndAddressSetView {
 		private final long shift;
@@ -532,7 +532,6 @@ public interface DebuggerStaticMappingService {
 	 * Note if the trace is backed by a Ghidra database, the caller must already have started a
 	 * transaction on the relevant domain object.
 	 * 
-	 * 
 	 * @param from the source trace location, including lifespan
 	 * @param to the destination program location
 	 * @param length the length of the mapped region, where 0 indicates {@code 1 << 64}.
@@ -542,6 +541,18 @@ public interface DebuggerStaticMappingService {
 	 */
 	void addMapping(TraceLocation from, ProgramLocation to, long length, boolean truncateExisting)
 			throws TraceConflictedMappingException;
+
+	/**
+	 * Add a static mapping from the given trace to the given program, using identical addresses
+	 *
+	 * @param from the source trace
+	 * @param toProgram the destination program
+	 * @param lifespan the lifespan of the mapping
+	 * @param truncateExisting true to delete or truncate the lifespan of overlapping entries. If
+	 *            false, overlapping entries are omitted.
+	 */
+	void addIdentityMapping(Trace from, Program toProgram, Range<Long> lifespan,
+			boolean truncateExisting);
 
 	/**
 	 * Add a static mapping (relocation) from the given module to the given program
@@ -559,7 +570,8 @@ public interface DebuggerStaticMappingService {
 			boolean truncateExisting) throws TraceConflictedMappingException;
 
 	/**
-	 * Add several static mappings (relocations)
+	 * ======= >>>>>>> d694542c5 (GP-660: Put program filler back in. Need to performance test.) Add
+	 * several static mappings (relocations)
 	 * 
 	 * <p>
 	 * This will group the entries by trace and add each's entries in a single transaction. If any
@@ -573,23 +585,6 @@ public interface DebuggerStaticMappingService {
 	 */
 	void addModuleMappings(Collection<ModuleMapEntry> entries, TaskMonitor monitor,
 			boolean truncateExisting) throws CancelledException;
-
-	/**
-	 * Add a static mapping (relocation) from the given section to the given program memory block
-	 * 
-	 * <p>
-	 * This is simply a shortcut and does not mean to imply that all mappings must represent section
-	 * relocations. In most cases the lengths of the from and to objects match exactly, but this may
-	 * not be the case. Whatever the case, the minimum length is computed, and the start addresses
-	 * are used as the location. The lifespan is that of the section's containing module.
-	 * 
-	 * @param from the source section
-	 * @param toProgram the destination program
-	 * @param to the destination memory block
-	 * @see #addMapping(TraceLocation, ProgramLocation, long, boolean)
-	 */
-	void addSectionMapping(TraceSection from, Program toProgram, MemoryBlock to,
-			boolean truncateExisting) throws TraceConflictedMappingException;
 
 	/**
 	 * Add several static mappings (relocations)
