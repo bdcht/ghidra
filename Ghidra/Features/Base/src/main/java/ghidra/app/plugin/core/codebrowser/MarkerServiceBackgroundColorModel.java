@@ -33,7 +33,7 @@ public class MarkerServiceBackgroundColorModel implements ListingBackgroundColor
 	private MarkerService markerService;
 	private Program program;
 	private AddressIndexMap indexMap;
-	private Color defaultBackgroundColor = Color.WHITE;
+	private Color defaultBackgroundColor = Color.BLACK;
 
 	public MarkerServiceBackgroundColorModel(MarkerService markerService, Program program,
 			AddressIndexMap indexMap) {

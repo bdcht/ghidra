@@ -189,7 +189,7 @@ class DirectoryList extends GList<File> implements GhidraFileChooserDirectoryMod
 		listEditor.add(listEditorLabel, BorderLayout.WEST);
 		listEditor.add(listEditorField, BorderLayout.CENTER);
 
-		listEditor.setBackground(Color.WHITE);
+		listEditor.setBackground(new Color(0x2b,0x2b,0x2b));
 		listEditorField.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
 
 		add(listEditor);

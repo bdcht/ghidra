@@ -44,7 +44,7 @@ import ghidra.util.bean.opteditor.OptionsVetoException;
 public abstract class AbstractReferenceHover extends AbstractConfigurableHover {
 
 	private static final int WINDOW_OFFSET = 50;
-	private static final Color BACKGROUND_COLOR = new Color(255, 255, 230);
+	private static final Color BACKGROUND_COLOR = new Color(0x32, 0x32, 0x32);
 
 	private CodeFormatService codeFormatService;
 	private ListingPanel panel;
@@ -276,7 +276,7 @@ public abstract class AbstractReferenceHover extends AbstractConfigurableHover {
 
 		String message = "Address not in memory";
 		message = HTMLUtilities.italic(message);
-		message = HTMLUtilities.colorString(Color.GRAY, message);
+		message = HTMLUtilities.colorString(Color.BLACK, message);
 		buffy.append(message);
 		toolTip.setTipText(buffy.toString());
 		return toolTip;

@@ -105,7 +105,7 @@ class DataTypePanel extends JPanel {
 		offsetAttrSet = new SimpleAttributeSet();
 		offsetAttrSet.addAttribute(StyleConstants.FontFamily, "Monospaced");
 		offsetAttrSet.addAttribute(StyleConstants.FontSize, new Integer(12));
-		offsetAttrSet.addAttribute(StyleConstants.Foreground, Color.BLACK);
+		offsetAttrSet.addAttribute(StyleConstants.Foreground, Color.WHITE);
 
 		contentAttrSet = new SimpleAttributeSet();
 		contentAttrSet.addAttribute(StyleConstants.FontFamily, "Monospaced");

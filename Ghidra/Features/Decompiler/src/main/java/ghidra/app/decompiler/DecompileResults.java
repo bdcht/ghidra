@@ -230,7 +230,7 @@ public class DecompileResults {
 							docroot = ClangXML.buildClangTree(parser, hfunc);
 							if (docroot == null) {
 								errMsg = "Unable to parse C (xml)";
-							}							
+							}
 						}
 					}
 					else if (el.getName().equals("parammeasures")) {

@@ -302,7 +302,7 @@ class FilterAction extends ToggleDockingAction {
 			typeButtonPanel.add(selectNoneButton);
 
 			checkboxPanel = new JPanel();
-			checkboxPanel.setBackground(Color.WHITE);
+			checkboxPanel.setBackground(Color.BLACK);
 			checkboxPanel.setLayout(new BoxLayout(checkboxPanel, BoxLayout.Y_AXIS));
 
 			buildCheckBoxList();

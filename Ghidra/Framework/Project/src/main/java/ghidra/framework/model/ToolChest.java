@@ -20,8 +20,8 @@ package ghidra.framework.model;
  * Interface to define methods to manage tools in a central location. 
  */
 public interface ToolChest {
-                               
-    
+
+
     /**
      * Get the tool template for the given tool name.
      * @param toolName name of tool
@@ -71,7 +71,7 @@ public interface ToolChest {
      * successfully removed from the tool chest.
      */
     public boolean remove(String toolName);
-    
+
     /**
      * Get the number of tools in this tool chest.
      * @return tool count.

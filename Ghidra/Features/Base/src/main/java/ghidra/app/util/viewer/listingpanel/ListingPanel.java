@@ -348,7 +348,7 @@ public class ListingPanel extends JPanel implements FieldMouseListener, FieldLoc
 				splitPaneDividerLocation = splitPane.getDividerLocation();
 			}
 			JPanel resizeablePanel = new JPanel(new ScrollpanelResizeablePanelLayout(scroller));
-			resizeablePanel.setBackground(Color.WHITE);
+			resizeablePanel.setBackground(Color.BLACK);
 			resizeablePanel.add(resizeableMarginProvider.getComponent());
 			splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, resizeablePanel, scroller);
 			splitPane.setDividerSize(4);

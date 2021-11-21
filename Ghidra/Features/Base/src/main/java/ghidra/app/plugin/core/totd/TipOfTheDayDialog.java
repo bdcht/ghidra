@@ -96,7 +96,7 @@ class TipOfTheDayDialog extends DialogComponentProvider {
 			BorderFactory.createCompoundBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10),
 				BorderFactory.createLineBorder(Color.BLACK));
 		panel.setBorder(panelBorder);
-		panel.setBackground(Color.WHITE);
+		panel.setBackground(new Color(0x2b,0x2b,0x2b));
 
 		JLabel label = new GLabel("Did you know...", tipIcon, SwingConstants.LEFT);
 		label.setFont(new Font("dialog", Font.BOLD, 12));

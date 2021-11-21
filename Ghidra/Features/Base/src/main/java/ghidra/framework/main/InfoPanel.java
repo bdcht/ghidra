@@ -174,7 +174,7 @@ class InfoPanel extends JPanel {
 		Font font = versionLabel.getFont();
 		font = font.deriveFont(14f).deriveFont(Font.BOLD);
 		versionLabel.setFont(font);
-		versionLabel.setForeground(Color.BLACK);
+		versionLabel.setForeground(Color.WHITE);
 		return versionLabel;
 	}
 

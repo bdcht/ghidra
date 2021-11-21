@@ -48,12 +48,12 @@ public class CodeUnitPrintable implements Printable {
 
 	private static final PaintContext PAINT_CONTEXT = new PaintContext();
 	static {
-		PAINT_CONTEXT.setForegroundColor(Color.BLACK);
-		PAINT_CONTEXT.setDefaultBackgroundColor(Color.WHITE);
-		PAINT_CONTEXT.setBackgroundColor(Color.white);
-		PAINT_CONTEXT.setCursorColor(Color.RED);
-		PAINT_CONTEXT.setSelectionColor(new Color(180, 255, 180));
-		PAINT_CONTEXT.setHighlightColor(new Color(255, 255, 150));
+		PAINT_CONTEXT.setForegroundColor(Color.WHITE);
+		PAINT_CONTEXT.setDefaultBackgroundColor(Color.BLACK);
+		PAINT_CONTEXT.setBackgroundColor(new Color(0x2b,0x2b,0x2b));
+		PAINT_CONTEXT.setCursorColor(Color.GREEN);
+		PAINT_CONTEXT.setSelectionColor(new Color(0x32, 0x32, 0xff));
+		PAINT_CONTEXT.setHighlightColor(new Color(0x32, 0xff, 0x32));
 
 		PAINT_CONTEXT.setPrinting(true);
 	}

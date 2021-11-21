@@ -45,7 +45,7 @@ public class PluginManagerComponent extends JPanel implements ChangeListener, Sc
 	PluginManagerComponent(PluginTool tool) {
 		super(new VerticalLayout(2));
 		setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-		setBackground(Color.WHITE);
+		setBackground(Color.BLACK);
 		this.tool = tool;
 		model = new PluginConfigurationModel(tool, this);
 		List<PluginPackage> pluginPackages = model.getPluginPackages();
@@ -77,7 +77,7 @@ public class PluginManagerComponent extends JPanel implements ChangeListener, Sc
 	}
 
 	private class PluginPackageComponent extends JPanel {
-		private final Color BG = Color.white;
+		private final Color BG = Color.black;
 		private final PluginPackage pluginPackage;
 		private final GCheckBox checkBox;
 		
@@ -134,7 +134,7 @@ public class PluginManagerComponent extends JPanel implements ChangeListener, Sc
 			
 			final GLabel nameLabel = new GLabel(pluginPackage.getName());
 			nameLabel.setFont(nameLabel.getFont().deriveFont(18f));
-			nameLabel.setForeground(Color.BLACK);
+			nameLabel.setForeground(Color.WHITE);
 			labelPanel.add(nameLabel);
 			
 			final HyperlinkComponent configureHyperlink = createConfigureHyperlink();
