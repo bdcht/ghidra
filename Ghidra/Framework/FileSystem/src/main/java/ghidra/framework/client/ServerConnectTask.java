@@ -329,6 +329,7 @@ class ServerConnectTask extends Task {
 			// Complete SSL handshake to trigger client keystore access if required
 			// which will give user ability to cancel without involving RMI which 
 			// will avoid RMI reconnect attempts
+            socket.setSoTimeout(5000);
 			socket.startHandshake();
 		}
 	}
