@@ -39,7 +39,7 @@ import ghidra.program.model.listing.Program;
  */
 class ProgramListPanel extends JPanel {
 
-	private static final Color BACKGROUND_COLOR = new Color(255, 255, 230);
+	private static final Color BACKGROUND_COLOR = new Color(0x2f, 0x2f, 0x2f);
 	private List<Program> hiddenList;
 	private List<Program> shownList;
 	private JList<Program> programList;

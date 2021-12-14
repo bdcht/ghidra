@@ -96,7 +96,7 @@ public class ProgramDiffPlugin extends ProgramPlugin
 	private static final String SELECTION_GROUP = "Selection Colors";
 	private static final String DIFF_HIGHLIGHT_COLOR_NAME =
 		SELECTION_GROUP + Options.DELIMITER + "Difference Color";
-	private Color diffHighlightColor = new Color(255, 230, 180); // light orange
+	private Color diffHighlightColor = new Color(255, 0x8c, 0); // dark orange
 	private Color cursorHighlightColor;
 	protected static final HelpService help = Help.getHelpService();
 

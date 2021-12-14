@@ -299,13 +299,13 @@ public class DecompileOptions {
 	private final static IntegerFormatEnum INTEGERFORMAT_OPTIONDEFAULT = IntegerFormatEnum.BestFit;		// Must match PrintLanguage::resetDefaultsInternal
 	private IntegerFormatEnum integerFormat;
 
-	private final static Color HIGHLIGHT_MIDDLE_MOUSE_DEF = new Color(255, 255, 0, 128);
+	private final static Color HIGHLIGHT_MIDDLE_MOUSE_DEF = new Color(55, 55, 0, 128);
 	private Color middleMouseHighlightColor;
 	private int middleMouseHighlightButton = MouseEvent.BUTTON2;
 
 	private final static String HIGHLIGHT_CURRENT_VARIABLE_MSG =
 		"Display.Color for Current Variable Highlight";
-	private final static Color HIGHLIGHT_CURRENT_VARIABLE_DEF = new Color(255, 255, 0, 128);
+	private final static Color HIGHLIGHT_CURRENT_VARIABLE_DEF = new Color(55, 55, 0, 128);
 	private Color currentVariableHighlightColor;
 
 	private final static String HIGHLIGHT_KEYWORD_MSG = "Display.Color for Keywords";
@@ -333,11 +333,11 @@ public class DecompileOptions {
 	private final static Color HIGHLIGHT_GLOBAL_DEF = Color.decode("0x009999");
 	private Color globalColor;
 	private final static String HIGHLIGHT_DEFAULT_MSG = "Display.Color Default";
-	private final static Color HIGHLIGHT_DEFAULT_DEF = Color.BLACK;
+	private final static Color HIGHLIGHT_DEFAULT_DEF = Color.WHITE;
 	private Color defaultColor;
 
 	private static final String CODE_VIEWER_BACKGROUND_COLOR_MSG = "Display.Background Color";
-	private static final Color CODE_VIEWER_BACKGROUND_COLOR = Color.WHITE;
+	private static final Color CODE_VIEWER_BACKGROUND_COLOR = Color.BLACK;
 	private Color codeViewerBackgroundColor;
 
 	private static final String SEARCH_HIGHLIGHT_MSG =

@@ -62,9 +62,9 @@ import util.CollectionUtils;
  */
 public abstract class ClangHighlightController {
 
-	public static Color DEFAULT_HIGHLIGHT_COLOR = new Color(255, 255, 0, 128);
+    public static Color DEFAULT_HIGHLIGHT_COLOR = new Color(55, 55, 0, 128);
 
-	public static ClangHighlightController dummyIfNull(ClangHighlightController c) {
+    public static ClangHighlightController dummyIfNull(ClangHighlightController c) {
 		if (c == null) {
 			return new NullClangHighlightController();
 		}
