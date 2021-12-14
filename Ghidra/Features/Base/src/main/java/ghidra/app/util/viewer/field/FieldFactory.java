@@ -89,7 +89,7 @@ public abstract class FieldFactory implements ExtensionPoint {
 		// For most fields (defined in optionsGui) these will be set. But "ad hoc" fields won't,
 		// so register something.  A second registration won't change the original
 
-		displayOptions.registerOption(colorOptionName, Color.BLACK, null,
+		displayOptions.registerOption(colorOptionName, Color.WHITE, null,
 			"Sets the " + colorOptionName);
 		displayOptions.registerOption(styleOptionName, -1, null, "Sets the " + style);
 
