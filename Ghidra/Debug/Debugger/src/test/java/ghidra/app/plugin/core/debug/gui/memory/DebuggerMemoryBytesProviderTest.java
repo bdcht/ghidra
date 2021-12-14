@@ -66,26 +66,6 @@ import ghidra.util.database.UndoableTransaction;
 
 @Category(NightlyCategory.class)
 public class DebuggerMemoryBytesProviderTest extends AbstractGhidraHeadedDebuggerGUITest {
-	static LocationTrackingSpec getLocationTrackingSpec(String name) {
-		return LocationTrackingSpec.fromConfigName(name);
-	}
-
-	static AutoReadMemorySpec getAutoReadMemorySpec(String name) {
-		return AutoReadMemorySpec.fromConfigName(name);
-	}
-
-	final LocationTrackingSpec trackNone =
-		getLocationTrackingSpec(NoneLocationTrackingSpec.CONFIG_NAME);
-	final LocationTrackingSpec trackPc =
-		getLocationTrackingSpec(PCLocationTrackingSpec.CONFIG_NAME);
-	final LocationTrackingSpec trackSp =
-		getLocationTrackingSpec(SPLocationTrackingSpec.CONFIG_NAME);
-
-	final AutoReadMemorySpec readNone = getAutoReadMemorySpec(NoneAutoReadMemorySpec.CONFIG_NAME);
-	final AutoReadMemorySpec readVisible =
-		getAutoReadMemorySpec(VisibleAutoReadMemorySpec.CONFIG_NAME);
-	final AutoReadMemorySpec readVisROOnce =
-		getAutoReadMemorySpec(VisibleROOnceAutoReadMemorySpec.CONFIG_NAME);
 
 	protected DebuggerMemoryBytesPlugin memBytesPlugin;
 	protected DebuggerMemoryBytesProvider memBytesProvider;
@@ -104,7 +84,7 @@ public class DebuggerMemoryBytesProviderTest extends AbstractGhidraHeadedDebugge
 	protected void goToDyn(ProgramLocation location) {
 		waitForPass(() -> {
 			runSwing(() -> memBytesProvider.goTo(location.getProgram(), location));
-			ProgramLocation confirm = memBytesProvider.getLocation();
+			ProgramLocation confirm = runSwing(() -> memBytesProvider.getLocation());
 			assertNotNull(confirm);
 			assertEquals(location.getAddress(), confirm.getAddress());
 		});
@@ -316,8 +296,7 @@ public class DebuggerMemoryBytesProviderTest extends AbstractGhidraHeadedDebugge
 		//Pre-check
 		assertNull(memBytesProvider.getLocation());
 
-		memBytesProvider.setTrackingSpec(trackSp);
-		waitForSwing();
+		runSwing(() -> memBytesProvider.setTrackingSpec(trackSp));
 
 		ProgramLocation loc = memBytesProvider.getLocation();
 		assertEquals(tb.trace.getProgramView(), loc.getProgram());
@@ -326,7 +305,7 @@ public class DebuggerMemoryBytesProviderTest extends AbstractGhidraHeadedDebugge
 
 	@Test
 	public void testFollowsCurrentTraceOnTraceChangeWithoutRegisterTracking() throws Exception {
-		memBytesProvider.setTrackingSpec(trackNone);
+		runSwing(() -> memBytesProvider.setTrackingSpec(trackNone));
 		try ( //
 				ToyDBTraceBuilder b1 =
 					new ToyDBTraceBuilder(name.getMethodName() + "_1", LANGID_TOYBE64); //
@@ -377,7 +356,7 @@ public class DebuggerMemoryBytesProviderTest extends AbstractGhidraHeadedDebugge
 
 	@Test
 	public void testFollowsCurrentThreadOnThreadChangeWithoutRegisterTracking() throws Exception {
-		memBytesProvider.setTrackingSpec(trackNone);
+		runSwing(() -> memBytesProvider.setTrackingSpec(trackNone));
 		try ( //
 				ToyDBTraceBuilder b1 =
 					new ToyDBTraceBuilder(name.getMethodName() + "_1", LANGID_TOYBE64); //
@@ -483,7 +462,7 @@ public class DebuggerMemoryBytesProviderTest extends AbstractGhidraHeadedDebugge
 		byte[] zero = new byte[data.length];
 		ByteBuffer buf = ByteBuffer.allocate(data.length);
 		assertEquals(readVisROOnce, memBytesProvider.getAutoReadMemorySpec());
-		memBytesProvider.setAutoReadMemorySpec(readNone);
+		runSwing(() -> memBytesProvider.setAutoReadMemorySpec(readNone));
 
 		createTestModel();
 		mb.createTestProcessesAndThreads();
@@ -517,10 +496,19 @@ public class DebuggerMemoryBytesProviderTest extends AbstractGhidraHeadedDebugge
 		assertArrayEquals(zero, buf.array());
 
 		/**
-		 * NOTE: Should read immediately upon setting auto-read, but we're not focused on the
+		 * Assure ourselves the block under test is not on screen
+		 */
+		waitForPass(() -> {
+			AddressSetView visible = memBytesProvider.readsMemTrait.getVisible();
+			assertFalse(visible.isEmpty());
+			assertFalse(visible.contains(addr(trace, 0x55550000)));
+			assertFalse(visible.contains(addr(trace, 0x55550fff)));
+		});
+		/**
+		 * NOTE: Should read immediately upon setting auto-read, but we're not looking at the
 		 * written block
 		 */
-		memBytesProvider.setAutoReadMemorySpec(readVisROOnce);
+		runSwing(() -> memBytesProvider.setAutoReadMemorySpec(readVisROOnce));
 		waitForDomainObject(trace);
 		buf.clear();
 		assertEquals(data.length,
@@ -595,13 +583,15 @@ public class DebuggerMemoryBytesProviderTest extends AbstractGhidraHeadedDebugge
 
 	public static <T> void setActionStateWithTrigger(MultiStateDockingAction<T> action, T userData,
 			EventTrigger trigger) {
-		for (ActionState<T> actionState : action.getAllActionStates()) {
-			if (actionState.getUserData() == userData) {
-				action.setCurrentActionStateWithTrigger(actionState, trigger);
-				return;
+		runSwing(() -> {
+			for (ActionState<T> actionState : action.getAllActionStates()) {
+				if (actionState.getUserData() == userData) {
+					action.setCurrentActionStateWithTrigger(actionState, trigger);
+					return;
+				}
 			}
-		}
-		fail("Invalid action state user data");
+			fail("Invalid action state user data");
+		});
 	}
 
 	@Test
@@ -682,8 +672,7 @@ public class DebuggerMemoryBytesProviderTest extends AbstractGhidraHeadedDebugge
 		waitForSwing();
 		assertEquals(tb.addr(0x1fff8765), memBytesProvider.getLocation().getAddress());
 
-		memBytesProvider.setTrackingSpec(trackNone);
-		waitForSwing();
+		runSwing(() -> memBytesProvider.setTrackingSpec(trackNone));
 		assertEquals(trackNone, memBytesProvider.actionTrackLocation.getCurrentUserData());
 	}
 
@@ -742,12 +731,12 @@ public class DebuggerMemoryBytesProviderTest extends AbstractGhidraHeadedDebugge
 	@Test
 	@Ignore("TODO") // Needs attention, but low priority
 	// Accessibility listener does not seem to work
-	public void testActionCaptureSelectedMemory() throws Exception {
+	public void testActionReadSelectedMemory() throws Exception {
 		byte[] data = incBlock();
 		byte[] zero = new byte[data.length];
 		ByteBuffer buf = ByteBuffer.allocate(data.length);
-		assertFalse(memBytesProvider.actionCaptureSelectedMemory.isEnabled());
-		memBytesProvider.setAutoReadMemorySpec(readNone);
+		assertFalse(memBytesProvider.actionReadSelectedMemory.isEnabled());
+		runSwing(() -> memBytesProvider.setAutoReadMemorySpec(readNone));
 
 		// To verify enabled requires live target
 		createAndOpenTrace();
@@ -761,12 +750,12 @@ public class DebuggerMemoryBytesProviderTest extends AbstractGhidraHeadedDebugge
 		traceManager.activateTrace(tb.trace);
 		waitForSwing();
 		// Still
-		assertFalse(memBytesProvider.actionCaptureSelectedMemory.isEnabled());
+		assertFalse(memBytesProvider.actionReadSelectedMemory.isEnabled());
 
 		memBytesProvider.setSelection(sel);
 		waitForSwing();
 		// Still
-		assertFalse(memBytesProvider.actionCaptureSelectedMemory.isEnabled());
+		assertFalse(memBytesProvider.actionReadSelectedMemory.isEnabled());
 
 		// Now, simulate the sequence that typically enables the action
 		createTestModel();
@@ -783,21 +772,21 @@ public class DebuggerMemoryBytesProviderTest extends AbstractGhidraHeadedDebugge
 
 		// NOTE: recordTargetContainerAndOpenTrace has already activated the trace
 		// Action is still disabled, because it requires a selection
-		assertFalse(memBytesProvider.actionCaptureSelectedMemory.isEnabled());
+		assertFalse(memBytesProvider.actionReadSelectedMemory.isEnabled());
 
 		memBytesProvider.setSelection(sel);
 		waitForSwing();
 		// Now, it should be enabled
-		assertTrue(memBytesProvider.actionCaptureSelectedMemory.isEnabled());
+		assertTrue(memBytesProvider.actionReadSelectedMemory.isEnabled());
 
-		// First check nothing captured yet
+		// First check nothing recorded yet
 		buf.clear();
 		assertEquals(data.length,
 			trace.getMemoryManager().getBytes(recorder.getSnap(), addr(trace, 0x55550000), buf));
 		assertArrayEquals(zero, buf.array());
 
 		// Verify that the action performs the expected task
-		performAction(memBytesProvider.actionCaptureSelectedMemory);
+		performAction(memBytesProvider.actionReadSelectedMemory);
 		waitForBusyTool(tool);
 		waitForDomainObject(trace);
 
@@ -812,28 +801,28 @@ public class DebuggerMemoryBytesProviderTest extends AbstractGhidraHeadedDebugge
 
 		// Verify that setting the memory inaccessible disables the action
 		mb.testProcess1.memory.setAccessible(false);
-		waitForPass(() -> assertFalse(memBytesProvider.actionCaptureSelectedMemory.isEnabled()));
+		waitForPass(() -> assertFalse(memBytesProvider.actionReadSelectedMemory.isEnabled()));
 
 		// Verify that setting it accessible re-enables it (assuming we still have selection)
 		mb.testProcess1.memory.setAccessible(true);
-		waitForPass(() -> assertTrue(memBytesProvider.actionCaptureSelectedMemory.isEnabled()));
+		waitForPass(() -> assertTrue(memBytesProvider.actionReadSelectedMemory.isEnabled()));
 
 		// Verify that moving into the past disables the action
 		TraceSnapshot forced = recorder.forceSnapshot();
 		waitForSwing(); // UI Wants to sync with new snap. Wait....
 		traceManager.activateSnap(forced.getKey() - 1);
 		waitForSwing();
-		assertFalse(memBytesProvider.actionCaptureSelectedMemory.isEnabled());
+		assertFalse(memBytesProvider.actionReadSelectedMemory.isEnabled());
 
 		// Verify that advancing to the present enables the action (assuming a selection)
 		traceManager.activateSnap(forced.getKey());
 		waitForSwing();
-		assertTrue(memBytesProvider.actionCaptureSelectedMemory.isEnabled());
+		assertTrue(memBytesProvider.actionReadSelectedMemory.isEnabled());
 
 		// Verify that stopping the recording disables the action
 		recorder.stopRecording();
 		waitForSwing();
-		assertFalse(memBytesProvider.actionCaptureSelectedMemory.isEnabled());
+		assertFalse(memBytesProvider.actionReadSelectedMemory.isEnabled());
 
 		// TODO: When resume recording is implemented, verify action is enabled with selection
 	}
@@ -845,18 +834,16 @@ public class DebuggerMemoryBytesProviderTest extends AbstractGhidraHeadedDebugge
 		assertEquals(readVisROOnce, memBytesProvider.getAutoReadMemorySpec());
 		assertEquals(readVisROOnce, memBytesProvider.actionAutoReadMemory.getCurrentUserData());
 
-		memBytesProvider.actionAutoReadMemory.setCurrentActionStateByUserData(readNone);
-		waitForSwing();
+		runSwing(
+			() -> memBytesProvider.actionAutoReadMemory.setCurrentActionStateByUserData(readNone));
 		assertEquals(readNone, memBytesProvider.getAutoReadMemorySpec());
 		assertEquals(readNone, memBytesProvider.actionAutoReadMemory.getCurrentUserData());
 
-		memBytesProvider.setAutoReadMemorySpec(readVisROOnce);
-		waitForSwing();
+		runSwing(() -> memBytesProvider.setAutoReadMemorySpec(readVisROOnce));
 		assertEquals(readVisROOnce, memBytesProvider.getAutoReadMemorySpec());
 		assertEquals(readVisROOnce, memBytesProvider.actionAutoReadMemory.getCurrentUserData());
 
-		memBytesProvider.setAutoReadMemorySpec(readNone);
-		waitForSwing();
+		runSwing(() -> memBytesProvider.setAutoReadMemorySpec(readNone));
 		assertEquals(readNone, memBytesProvider.getAutoReadMemorySpec());
 		assertEquals(readNone, memBytesProvider.actionAutoReadMemory.getCurrentUserData());
 	}
