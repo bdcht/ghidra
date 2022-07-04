@@ -47,7 +47,7 @@ public class InterpreterPanel extends JPanel implements OptionsChangeListener {
 			"Double-click the font example to change it.";
 
 	private static final Color NORMAL_COLOR = Color.white;
-	private static final Color ERROR_COLOR = new Color(130,30,3);
+	private static final Color ERROR_COLOR = new Color(170,75,75);
 
 	public enum TextType {
 		STDOUT, STDERR, STDIN;

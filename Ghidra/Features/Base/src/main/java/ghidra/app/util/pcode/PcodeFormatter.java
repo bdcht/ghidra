@@ -100,16 +100,16 @@ public class PcodeFormatter {
 	}
 
 	private void initPunctuation() {
-		SPACE = new AttributedString(" ", Color.BLUE, metrics);
-		EQUALS = new AttributedString(" = ", Color.BLUE, metrics);
-		COMMA = new AttributedString(",", Color.BLUE, metrics);
-		LEFT_PAREN = new AttributedString("(", Color.BLUE, metrics);
-		RIGHT_PAREN = new AttributedString(")", Color.BLUE, metrics);
-		LEFT_BRACKET = new AttributedString("[", Color.BLUE, metrics);
-		RIGHT_BRACKET = new AttributedString("]", Color.BLUE, metrics);
-		STAR = new AttributedString("*", Color.BLUE, metrics);
-		COLON = new AttributedString(":", Color.BLUE, metrics);
-		QUOTE = new AttributedString("\"", Color.BLUE, metrics);
+		SPACE = new AttributedString(" ", Color.WHITE, metrics);
+		EQUALS = new AttributedString(" = ", Color.WHITE, metrics);
+		COMMA = new AttributedString(",", Color.WHITE, metrics);
+		LEFT_PAREN = new AttributedString("(", Color.WHITE, metrics);
+		RIGHT_PAREN = new AttributedString(")", Color.WHITE, metrics);
+		LEFT_BRACKET = new AttributedString("[", Color.WHITE, metrics);
+		RIGHT_BRACKET = new AttributedString("]", Color.WHITE, metrics);
+		STAR = new AttributedString("*", Color.WHITE, metrics);
+		COLON = new AttributedString(":", Color.WHITE, metrics);
+		QUOTE = new AttributedString("\"", Color.WHITE, metrics);
 	}
 
 	/**
@@ -185,7 +185,7 @@ public class PcodeFormatter {
 		if (PcodeOp.PTRADD == opcode) {
 			// handle label OpTpl
 			String label = "<" + op.getInput()[0].getOffset().getReal() + ">";
-			lineList.add(new AttributedString(label, Color.BLUE, metrics));
+			lineList.add(new AttributedString(label, Color.ORANGE, metrics));
 			return new CompositeAttributedString(lineList);
 		}
 
@@ -202,7 +202,7 @@ public class PcodeFormatter {
 			formatVarnodeTpl(program, opcode, -1, output, lineList);
 			lineList.add(EQUALS);
 		}
-		Color color = (opcode == PcodeOp.UNIMPLEMENTED) ? Color.RED : Color.BLUE.darker();
+		Color color = (opcode == PcodeOp.UNIMPLEMENTED) ? Color.RED : Color.WHITE;
 		lineList.add(new AttributedString(PcodeOp.getMnemonic(opcode), color, metrics));
 		VarnodeTpl[] inputs = op.getInput();
 		for (int i = 0; i < inputs.length; i++) {
@@ -285,7 +285,7 @@ public class PcodeFormatter {
 		// same format as the Varnode.toString
 		String str = "(" + space.getName() + ", 0x" + Long.toHexString(offset.getReal()) + ", " +
 			size.getReal() + ")";
-		lineList.add(new AttributedString(str, Color.BLUE, metrics));
+		lineList.add(new AttributedString(str, Color.MAGENTA, metrics));
 	}
 
 	private void formatUnique(ConstTpl offset, ConstTpl size, List<AttributedString> lineList) {
@@ -387,7 +387,7 @@ public class PcodeFormatter {
 			psuedoOp = "unknown";
 		}
 		lineList.add(QUOTE);
-		lineList.add(new AttributedString(psuedoOp, Color.BLUE, metrics));
+		lineList.add(new AttributedString(psuedoOp, Color.WHITE, metrics));
 		lineList.add(QUOTE);
 	}
 
@@ -395,7 +395,7 @@ public class PcodeFormatter {
 		if (input0.getSpace().isConstSpace() &&
 			input0.getOffset().getType() == ConstTpl.J_RELATIVE) {
 			String label = "<" + input0.getOffset().getReal() + ">";
-			lineList.add(new AttributedString(label, Color.BLUE, metrics));
+			lineList.add(new AttributedString(label, Color.ORANGE, metrics));
 			return true;
 		}
 		return false;
@@ -416,7 +416,7 @@ public class PcodeFormatter {
 		else {
 			spaceName = space.getName();
 		}
-		lineList.add(new AttributedString(spaceName, Color.BLUE, metrics));
+		lineList.add(new AttributedString(spaceName, Color.CYAN, metrics));
 		lineList.add(LEFT_PAREN);
 		formatVarnodeTpl(program, -1, 1, input1, lineList);
 		lineList.add(RIGHT_PAREN);
