@@ -210,6 +210,11 @@ public class DebuggerModulesProvider extends ComponentProviderAdapter {
 		public ModuleTableModel() {
 			super("Modules", ModuleTableColumns.class, TraceModule::getObjectKey, ModuleRow::new);
 		}
+
+		@Override
+		public List<ModuleTableColumns> defaultSortOrder() {
+			return List.of(ModuleTableColumns.BASE);
+		}
 	}
 
 	protected static class SectionTableModel
@@ -219,6 +224,11 @@ public class DebuggerModulesProvider extends ComponentProviderAdapter {
 		public SectionTableModel() {
 			super("Sections", SectionTableColumns.class, TraceSection::getObjectKey,
 				SectionRow::new);
+		}
+
+		@Override
+		public List<SectionTableColumns> defaultSortOrder() {
+			return List.of(SectionTableColumns.START);
 		}
 	}
 
@@ -1138,7 +1148,19 @@ public class DebuggerModulesProvider extends ComponentProviderAdapter {
 
 	public void setProgram(Program program) {
 		currentProgram = program;
-		String name = (program == null ? "..." : program.getName());
+		String name;
+		if (program != null) {
+			DomainFile df = program.getDomainFile();
+			if (df != null) {
+				name = df.getName();
+			}
+			else {
+				name = program.getName();
+			}
+		}
+		else {
+			name = "...";
+		}
 		actionMapModuleTo.getPopupMenuData().setMenuItemName(MapModuleToAction.NAME_PREFIX + name);
 		actionMapSectionsTo.getPopupMenuData()
 				.setMenuItemName(MapSectionsToAction.NAME_PREFIX + name);
@@ -1164,7 +1186,13 @@ public class DebuggerModulesProvider extends ComponentProviderAdapter {
 		if (block == null) {
 			return "...";
 		}
-		return location.getProgram().getName() + ":" + block.getName();
+		Program program = location.getProgram();
+		String name = program.getName();
+		DomainFile df = program.getDomainFile();
+		if (df != null) {
+			name = df.getName();
+		}
+		return name + ":" + block.getName();
 	}
 
 	public void setLocation(ProgramLocation location) {
@@ -1219,6 +1247,8 @@ public class DebuggerModulesProvider extends ComponentProviderAdapter {
 			return programChooserDialog;
 		}
 		DomainFileFilter filter = df -> Program.class.isAssignableFrom(df.getDomainObjectClass());
+
+		// TODO regarding the hack note below, I believe it's fixed, but not sure how to test
 		return programChooserDialog =
 			new DataTreeDialog(null, "Map Module to Program", DataTreeDialog.OPEN, filter) {
 				{ // TODO/HACK: I get an NPE setting the default selection if I don't fake this.

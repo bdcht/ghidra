@@ -319,7 +319,8 @@ public class BlockStreamServer extends Thread {
 				}
 			}
 			finally {
-				if (!success && (registration.blockStream instanceof InputBlockStream)) {
+				if (!success && (registration != null) &&
+					(registration.blockStream instanceof InputBlockStream)) {
 					// ensure input stream is closed since it can be terminated by client, 
 					// let client handle error if any
 					try {
@@ -337,7 +338,9 @@ public class BlockStreamServer extends Thread {
 						// ignore
 					}
 				}
-				registration.state = HandlerConnectionState.CLOSED;
+				if (registration != null) {
+					registration.state = HandlerConnectionState.CLOSED;
+				}
 			}
 		}
 

@@ -26,6 +26,7 @@ import ghidra.framework.store.LockException;
 import ghidra.program.database.IntRangeMap;
 import ghidra.program.database.map.AddressMap;
 import ghidra.program.model.address.*;
+import ghidra.program.model.data.CategoryPath;
 import ghidra.program.model.lang.*;
 import ghidra.program.model.listing.*;
 import ghidra.program.model.pcode.Varnode;
@@ -35,7 +36,6 @@ import ghidra.program.model.util.AddressSetPropertyMap;
 import ghidra.program.model.util.PropertyMapManager;
 import ghidra.trace.database.listing.DBTraceCodeRegisterSpace;
 import ghidra.trace.database.memory.DBTraceMemoryRegisterSpace;
-import ghidra.trace.database.thread.DBTraceThread;
 import ghidra.trace.model.Trace;
 import ghidra.trace.model.data.TraceBasedDataTypeManager;
 import ghidra.trace.model.program.TraceProgramView;
@@ -50,7 +50,7 @@ public class DBTraceProgramViewRegisters implements TraceProgramView {
 	protected final DomainObjectEventQueues eventQueues;
 
 	private final DBTraceProgramView view;
-	private final DBTraceThread thread;
+	private final TraceThread thread;
 
 	private final DBTraceProgramViewRegisterListing listing;
 	private final DBTraceProgramViewRegisterMemory memory;
@@ -62,7 +62,7 @@ public class DBTraceProgramViewRegisters implements TraceProgramView {
 		this.thread = codeSpace.getThread(); // TODO: Bleh, should be parameter
 
 		this.eventQueues = new DomainObjectEventQueues(this, DBTraceProgramView.TIME_INTERVAL,
-			DBTraceProgramView.BUF_SIZE, view.trace.getLock());
+			view.trace.getLock());
 
 		// TODO: Make these create code/memory spaces lazily, to allow null at construction
 		// NOTE: Use reference manager as example
@@ -140,6 +140,16 @@ public class DBTraceProgramViewRegisters implements TraceProgramView {
 	@Override
 	public void setCompiler(String compiler) {
 		view.setCompiler(compiler);
+	}
+
+	@Override
+	public CategoryPath getPreferredRootNamespaceCategoryPath() {
+		return view.getPreferredRootNamespaceCategoryPath();
+	}
+
+	@Override
+	public void setPreferredRootNamespaceCategoryPath(String categoryPath) {
+		view.setPreferredRootNamespaceCategoryPath(categoryPath);
 	}
 
 	@Override

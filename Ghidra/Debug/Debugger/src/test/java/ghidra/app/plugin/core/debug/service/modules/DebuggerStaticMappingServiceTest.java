@@ -384,7 +384,7 @@ public class DebuggerStaticMappingServiceTest extends AbstractGhidraHeadedDebugg
 		copyTrace();
 		add2ndMapping();
 
-		Map<TraceSnap, Collection<MappedAddressRange>> views =
+		Map<TraceSpan, Collection<MappedAddressRange>> views =
 			mappingService.getOpenMappedViews(program, new AddressSet());
 		assertTrue(views.isEmpty());
 	}
@@ -407,12 +407,14 @@ public class DebuggerStaticMappingServiceTest extends AbstractGhidraHeadedDebugg
 		// After
 		set.add(stSpace.getAddress(0xbadbadbadL), stSpace.getAddress(0xbadbadbadL + 0xff));
 
-		Map<TraceSnap, Collection<MappedAddressRange>> views =
+		Map<TraceSpan, Collection<MappedAddressRange>> views =
 			mappingService.getOpenMappedViews(program, set);
 		Msg.info(this, views);
 		assertEquals(2, views.size());
-		Collection<MappedAddressRange> mappedSet1 = views.get(new DefaultTraceSnap(tb.trace, 0));
-		Collection<MappedAddressRange> mappedSet2 = views.get(new DefaultTraceSnap(copy, 0));
+		Collection<MappedAddressRange> mappedSet1 =
+			views.get(new DefaultTraceSpan(tb.trace, Range.atLeast(0L)));
+		Collection<MappedAddressRange> mappedSet2 =
+			views.get(new DefaultTraceSpan(copy, Range.atLeast(0L)));
 
 		assertEquals(Set.of(
 			new MappedAddressRange(tb.range(stSpace, 0x00200000, 0x002000ff),
@@ -608,5 +610,28 @@ public class DebuggerStaticMappingServiceTest extends AbstractGhidraHeadedDebugg
 		Set<Set<TraceMemoryRegion>> actual =
 			DebuggerStaticMappingProposals.groupRegionsByLikelyModule(mm.getAllRegions());
 		assertEquals(Set.of(Set.of(echoText, echoData), Set.of(libText, libData)), actual);
+	}
+
+	protected void assertMapsTwoWay(long stOff, long dynOff) {
+		TraceLocation dynLoc =
+			new DefaultTraceLocation(tb.trace, null, Range.atLeast(0L), tb.addr(dynOff));
+		ProgramLocation stLoc = new ProgramLocation(program, stSpace.getAddress(stOff));
+		assertEquals(stLoc, mappingService.getOpenMappedLocation(dynLoc));
+		assertEquals(dynLoc, mappingService.getOpenMappedLocation(tb.trace, stLoc, 0));
+	}
+
+	@Test
+	public void testMapFullSpace() throws Exception {
+		try (UndoableTransaction tid = tb.startTransaction()) {
+			TraceLocation traceLoc =
+				new DefaultTraceLocation(tb.trace, null, Range.atLeast(0L), tb.addr(0));
+			ProgramLocation progLoc = new ProgramLocation(program, stSpace.getAddress(0));
+			// NB. 0 indicates 1 << 64
+			mappingService.addMapping(traceLoc, progLoc, 0, true);
+		}
+		waitForPass(() -> assertMapsTwoWay(0L, 0L));
+		assertMapsTwoWay(-1L, -1L);
+		assertMapsTwoWay(Long.MAX_VALUE, Long.MAX_VALUE);
+		assertMapsTwoWay(Long.MIN_VALUE, Long.MIN_VALUE);
 	}
 }

@@ -46,7 +46,8 @@ import ghidra.program.util.ChangeManager;
 import ghidra.program.util.ProgramChangeRecord;
 import ghidra.trace.database.DBTrace;
 import ghidra.trace.database.listing.*;
-import ghidra.trace.database.memory.*;
+import ghidra.trace.database.memory.DBTraceMemoryRegisterSpace;
+import ghidra.trace.database.memory.DBTraceMemorySpace;
 import ghidra.trace.database.symbol.DBTraceFunctionSymbolView;
 import ghidra.trace.model.Trace.*;
 import ghidra.trace.model.TraceAddressSnapRange;
@@ -913,7 +914,7 @@ public class DBTraceProgramView implements TraceProgramView {
 		this.viewport.setSnap(snap);
 
 		this.eventQueues =
-			new DomainObjectEventQueues(this, TIME_INTERVAL, BUF_SIZE, trace.getLock());
+			new DomainObjectEventQueues(this, TIME_INTERVAL, trace.getLock());
 
 		this.regViewsByThread = new WeakValueHashMap<>();
 
@@ -1068,6 +1069,18 @@ public class DBTraceProgramView implements TraceProgramView {
 
 	@Override
 	public void setCompiler(String compiler) {
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public CategoryPath getPreferredRootNamespaceCategoryPath() {
+		// TODO: not yet implemented
+		return null;
+	}
+
+	@Override
+	public void setPreferredRootNamespaceCategoryPath(String categoryPath) {
+		// TODO: not yet implemented
 		throw new UnsupportedOperationException();
 	}
 
@@ -1562,37 +1575,36 @@ public class DBTraceProgramView implements TraceProgramView {
 		trace.removeTransactionListener(listener);
 	}
 
-	public void updateMemoryAddRegionBlock(DBTraceMemoryRegion region) {
+	public void updateMemoryAddRegionBlock(TraceMemoryRegion region) {
 		if (!isRegionVisible(region)) {
 			return;
 		}
 		memory.updateAddRegionBlock(region);
 	}
 
-	public void updateMemoryChangeRegionBlockName(DBTraceMemoryRegion region) {
+	public void updateMemoryChangeRegionBlockName(TraceMemoryRegion region) {
 		if (!isRegionVisible(region)) {
 			return;
 		}
 		memory.updateChangeRegionBlockName(region);
 	}
 
-	public void updateMemoryChangeRegionBlockFlags(DBTraceMemoryRegion region) {
-		if (!isRegionVisible(region)) {
+	public void updateMemoryChangeRegionBlockFlags(TraceMemoryRegion region, Range<Long> lifespan) {
+		if (!isRegionVisible(region, lifespan)) {
 			return;
 		}
 		memory.updateChangeRegionBlockFlags(region);
 	}
 
-	public void updateMemoryChangeRegionBlockRange(DBTraceMemoryRegion region,
-			AddressRange oldRange,
-			AddressRange newRange) {
+	public void updateMemoryChangeRegionBlockRange(TraceMemoryRegion region,
+			AddressRange oldRange, AddressRange newRange) {
 		if (!isRegionVisible(region)) {
 			return;
 		}
 		memory.updateChangeRegionBlockRange(region, oldRange, newRange);
 	}
 
-	public void updateMemoryChangeRegionBlockLifespan(DBTraceMemoryRegion region,
+	public void updateMemoryChangeRegionBlockLifespan(TraceMemoryRegion region,
 			Range<Long> oldLifespan, Range<Long> newLifespan) {
 		boolean inOld = isRegionVisible(region, oldLifespan);
 		boolean inNew = isRegionVisible(region, newLifespan);
@@ -1604,7 +1616,7 @@ public class DBTraceProgramView implements TraceProgramView {
 		}
 	}
 
-	public void updateMemoryDeleteRegionBlock(DBTraceMemoryRegion region) {
+	public void updateMemoryDeleteRegionBlock(TraceMemoryRegion region) {
 		if (!isRegionVisible(region)) {
 			return;
 		}

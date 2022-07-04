@@ -240,7 +240,7 @@ public class ParamListStandard implements ParamList {
 		pe.add(pentry);
 		pentry.restoreXml(parser, cspec, pe, grouped);
 		if (splitFloat) {
-			if (pentry.getType() == ParamEntry.TYPE_FLOAT) {
+			if (!grouped && pentry.getType() == ParamEntry.TYPE_FLOAT) {
 				if (resourceTwoStart >= 0) {
 					throw new XmlParseException(
 						"parameter list floating-point entries must come first");
@@ -276,8 +276,8 @@ public class ParamListStandard implements ParamList {
 		// Check that all entries in the group are distinguishable
 		for (int i = 1; i < count; ++i) {
 			ParamEntry curEntry = pe.get(pe.size() - 1 - i);
-			for (int j = 0; j < i; ++i) {
-				ParamEntry.orderWithinGroup(pe.get(pe.size() - 1 - j), curEntry);
+			for (int j = 0; j < i; ++j) {
+				ParamEntry.orderWithinGroup(curEntry, pe.get(pe.size() - 1 - j));
 			}
 		}
 		parser.end(el);
@@ -315,14 +315,6 @@ public class ParamListStandard implements ParamList {
 			}
 			else if (el.getName().equals("group")) {
 				parseGroup(parser, cspec, pe, numgroup, splitFloat);
-			}
-		}
-		// Check that any pentry tags with join storage don't overlap following tags
-		for (ParamEntry curEntry : pe) {
-			if (curEntry.isNonOverlappingJoin()) {
-				if (curEntry.countJoinOverlap(pe) != 1) {
-					throw new XmlParseException("pentry tag must be listed after all its overlaps");
-				}
 			}
 		}
 		parser.end(mainel);
@@ -381,10 +373,18 @@ public class ParamListStandard implements ParamList {
 	}
 
 	@Override
-	public boolean equals(Object obj) {
-		ParamListStandard op2 = (ParamListStandard) obj;
-		if (!SystemUtilities.isArrayEqual(entry, op2.entry)) {
+	public boolean isEquivalent(ParamList obj) {
+		if (this.getClass() != obj.getClass()) {
 			return false;
+		}
+		ParamListStandard op2 = (ParamListStandard) obj;
+		if (entry.length != op2.entry.length) {
+			return false;
+		}
+		for (int i = 0; i < entry.length; ++i) {
+			if (!entry[i].isEquivalent(op2.entry[i])) {
+				return false;
+			}
 		}
 		if (numgroup != op2.numgroup || pointermax != op2.pointermax) {
 			return false;
@@ -396,20 +396,6 @@ public class ParamListStandard implements ParamList {
 			return false;
 		}
 		return true;
-	}
-
-	@Override
-	public int hashCode() {
-		int hash = numgroup;
-		hash = 79 * hash + pointermax;
-		hash = 79 * hash + (thisbeforeret ? 27 : 19);
-		for (ParamEntry param : entry) {
-			hash = 79 * hash + param.hashCode();
-		}
-		if (spacebase == null) {
-			hash = 79 * hash + spacebase.hashCode();
-		}
-		return hash;
 	}
 
 	@Override

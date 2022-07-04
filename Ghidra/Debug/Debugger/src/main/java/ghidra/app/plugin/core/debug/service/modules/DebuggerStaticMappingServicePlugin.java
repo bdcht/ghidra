@@ -95,13 +95,12 @@ public class DebuggerStaticMappingServicePlugin extends Plugin
 		}
 
 		public Address addOrMax(Address start, long length) {
-			try {
-				return start.addNoWrap(length);
-			}
-			catch (AddressOverflowException e) {
-				Msg.warn(this, "Mapping entry cause overflow in static address space");
+			Address result = start.addWrapSpace(length);
+			if (result.compareTo(start) < 0) {
+				Msg.warn(this, "Mapping entry caused overflow in static address space");
 				return start.getAddressSpace().getMaxAddress();
 			}
+			return result;
 		}
 
 		public boolean programOpened(Program opened) {
@@ -135,8 +134,8 @@ public class DebuggerStaticMappingServicePlugin extends Plugin
 			return staticRange.getMinAddress();
 		}
 
-		public TraceSnap getTraceSnap() {
-			return new DefaultTraceSnap(mapping.getTrace(), mapping.getStartSnap());
+		public TraceSpan getTraceSpan() {
+			return new DefaultTraceSpan(mapping.getTrace(), mapping.getLifespan());
 		}
 
 		public TraceAddressSnapRange getTraceAddressSnapRange() {
@@ -176,7 +175,7 @@ public class DebuggerStaticMappingServicePlugin extends Plugin
 		protected Address mapTraceAddressToProgram(Address address) {
 			assert isInTraceRange(address, null);
 			long offset = address.subtract(mapping.getMinTraceAddress());
-			return staticRange.getMinAddress().add(offset);
+			return staticRange.getMinAddress().addWrapSpace(offset);
 		}
 
 		public ProgramLocation mapTraceAddressToProgramLocation(Address address) {
@@ -197,7 +196,7 @@ public class DebuggerStaticMappingServicePlugin extends Plugin
 		protected Address mapProgramAddressToTrace(Address address) {
 			assert isInProgramRange(address);
 			long offset = address.subtract(staticRange.getMinAddress());
-			return mapping.getMinTraceAddress().add(offset);
+			return mapping.getMinTraceAddress().addWrapSpace(offset);
 		}
 
 		protected TraceLocation mapProgramAddressToTraceLocation(Address address) {
@@ -211,11 +210,6 @@ public class DebuggerStaticMappingServicePlugin extends Plugin
 			Address min = mapProgramAddressToTrace(part.getMinAddress());
 			Address max = mapProgramAddressToTrace(part.getMaxAddress());
 			return new AddressRangeImpl(min, max);
-		}
-
-		public Program openStaticProgram() {
-			return ProgramURLUtils.openHackedUpGhidraURL(programManager, tool.getProject(),
-				mapping.getStaticProgramURL(), ProgramManager.OPEN_VISIBLE);
 		}
 
 		public boolean isStaticProgramOpen() {
@@ -389,31 +383,22 @@ public class DebuggerStaticMappingServicePlugin extends Plugin
 			return Collections.unmodifiableMap(result);
 		}
 
-		protected void openAndCollectPrograms(AddressRange rng, Range<Long> span,
-				Set<Program> result, Set<Exception> failures) {
+		protected void collectMappedProgramURLsInView(AddressRange rng, Range<Long> span,
+				Set<URL> result) {
 			TraceAddressSnapRange tatr = new ImmutableTraceAddressSnapRange(rng, span);
 			for (Entry<TraceAddressSnapRange, MappingEntry> out : outbound.entrySet()) {
 				if (!out.getKey().intersects(tatr)) {
 					continue;
 				}
 				MappingEntry me = out.getValue();
-				try {
-					result.add(me.openStaticProgram());
-				}
-				catch (Exception e) {
-					if (failures == null) {
-						throw e;
-					}
-					failures.add(e);
-				}
+				result.add(me.getStaticProgramURL());
 			}
 		}
 
-		public Set<Program> openMappedProgramsInView(AddressSetView set, Range<Long> span,
-				Set<Exception> failures) {
-			Set<Program> result = new HashSet<>();
+		public Set<URL> getMappedProgramURLsInView(AddressSetView set, Range<Long> span) {
+			Set<URL> result = new HashSet<>();
 			for (AddressRange rng : set) {
-				openAndCollectPrograms(rng, span, result, failures);
+				collectMappedProgramURLsInView(rng, span, result);
 			}
 			return Collections.unmodifiableSet(result);
 		}
@@ -513,7 +498,7 @@ public class DebuggerStaticMappingServicePlugin extends Plugin
 		}
 
 		protected void collectOpenMappedViews(AddressRange rng,
-				Map<TraceSnap, Collection<MappedAddressRange>> result) {
+				Map<TraceSpan, Collection<MappedAddressRange>> result) {
 			for (Entry<MappingEntry, Address> inPreceeding : inbound.headMapByValue(
 				rng.getMaxAddress(), true).entrySet()) {
 				Address start = inPreceeding.getValue();
@@ -527,14 +512,14 @@ public class DebuggerStaticMappingServicePlugin extends Plugin
 
 				AddressRange srcRange = me.staticRange.intersect(rng);
 				AddressRange dstRange = me.mapProgramRangeToTrace(rng);
-				result.computeIfAbsent(me.getTraceSnap(), p -> new TreeSet<>())
+				result.computeIfAbsent(me.getTraceSpan(), p -> new TreeSet<>())
 						.add(new MappedAddressRange(srcRange, dstRange));
 			}
 		}
 
-		public Map<TraceSnap, Collection<MappedAddressRange>> getOpenMappedViews(
+		public Map<TraceSpan, Collection<MappedAddressRange>> getOpenMappedViews(
 				AddressSetView set) {
-			Map<TraceSnap, Collection<MappedAddressRange>> result = new HashMap<>();
+			Map<TraceSpan, Collection<MappedAddressRange>> result = new HashMap<>();
 			for (AddressRange rng : set) {
 				collectOpenMappedViews(rng, result);
 			}
@@ -847,20 +832,24 @@ public class DebuggerStaticMappingServicePlugin extends Plugin
 
 	@Override
 	public Set<Program> getOpenMappedProgramsAtSnap(Trace trace, long snap) {
-		InfoPerTrace info = requireTrackedInfo(trace);
-		if (info == null) {
-			return null;
+		synchronized (lock) {
+			InfoPerTrace info = requireTrackedInfo(trace);
+			if (info == null) {
+				return null;
+			}
+			return info.getOpenMappedProgramsAtSnap(snap);
 		}
-		return info.getOpenMappedProgramsAtSnap(snap);
 	}
 
 	@Override
 	public ProgramLocation getOpenMappedLocation(TraceLocation loc) {
-		InfoPerTrace info = requireTrackedInfo(loc.getTrace());
-		if (info == null) {
-			return null;
+		synchronized (lock) {
+			InfoPerTrace info = requireTrackedInfo(loc.getTrace());
+			if (info == null) {
+				return null;
+			}
+			return info.getOpenMappedLocations(loc.getAddress(), loc.getLifespan());
 		}
-		return info.getOpenMappedLocations(loc.getAddress(), loc.getLifespan());
 	}
 
 	protected long getNonScratchSnap(TraceProgramView view) {
@@ -869,75 +858,106 @@ public class DebuggerStaticMappingServicePlugin extends Plugin
 
 	@Override
 	public ProgramLocation getStaticLocationFromDynamic(ProgramLocation loc) {
-		loc = ProgramLocationUtils.fixLocation(loc, true);
-		TraceProgramView view = (TraceProgramView) loc.getProgram();
-		Trace trace = view.getTrace();
-		TraceLocation tloc = new DefaultTraceLocation(trace, null,
-			Range.singleton(getNonScratchSnap(view)), loc.getByteAddress());
-		ProgramLocation mapped = getOpenMappedLocation(tloc);
-		if (mapped == null) {
-			return null;
+		synchronized (lock) {
+			loc = ProgramLocationUtils.fixLocation(loc, true);
+			TraceProgramView view = (TraceProgramView) loc.getProgram();
+			Trace trace = view.getTrace();
+			TraceLocation tloc = new DefaultTraceLocation(trace, null,
+				Range.singleton(getNonScratchSnap(view)), loc.getByteAddress());
+			ProgramLocation mapped = getOpenMappedLocation(tloc);
+			if (mapped == null) {
+				return null;
+			}
+			return ProgramLocationUtils.replaceAddress(loc, mapped.getProgram(),
+				mapped.getByteAddress());
 		}
-		return ProgramLocationUtils.replaceAddress(loc, mapped.getProgram(),
-			mapped.getByteAddress());
 	}
 
 	@Override
 	public Set<TraceLocation> getOpenMappedLocations(ProgramLocation loc) {
-		InfoPerProgram info = requireTrackedInfo(loc.getProgram());
-		if (info == null) {
-			return null;
+		synchronized (lock) {
+			InfoPerProgram info = requireTrackedInfo(loc.getProgram());
+			if (info == null) {
+				return null;
+			}
+			return info.getOpenMappedTraceLocations(loc.getByteAddress());
 		}
-		return info.getOpenMappedTraceLocations(loc.getByteAddress());
 	}
 
 	@Override
 	public TraceLocation getOpenMappedLocation(Trace trace, ProgramLocation loc, long snap) {
-		InfoPerProgram info = requireTrackedInfo(loc.getProgram());
-		if (info == null) {
-			return null;
+		synchronized (lock) {
+			InfoPerProgram info = requireTrackedInfo(loc.getProgram());
+			if (info == null) {
+				return null;
+			}
+			return info.getOpenMappedTraceLocation(trace, loc.getByteAddress(), snap);
 		}
-		return info.getOpenMappedTraceLocation(trace, loc.getByteAddress(), snap);
 	}
 
 	@Override
 	public ProgramLocation getDynamicLocationFromStatic(TraceProgramView view,
 			ProgramLocation loc) {
-		TraceLocation tloc = getOpenMappedLocation(view.getTrace(), loc, getNonScratchSnap(view));
-		if (tloc == null) {
-			return null;
+		synchronized (lock) {
+			TraceLocation tloc =
+				getOpenMappedLocation(view.getTrace(), loc, getNonScratchSnap(view));
+			if (tloc == null) {
+				return null;
+			}
+			return ProgramLocationUtils.replaceAddress(loc, view, tloc.getAddress());
 		}
-		return ProgramLocationUtils.replaceAddress(loc, view, tloc.getAddress());
 	}
 
 	@Override
 	public Map<Program, Collection<MappedAddressRange>> getOpenMappedViews(Trace trace,
 			AddressSetView set, long snap) {
-		InfoPerTrace info = requireTrackedInfo(trace);
-		if (info == null) {
-			return null;
+		synchronized (lock) {
+			InfoPerTrace info = requireTrackedInfo(trace);
+			if (info == null) {
+				return null;
+			}
+			return info.getOpenMappedViews(set, Range.singleton(snap));
 		}
-		return info.getOpenMappedViews(set, Range.singleton(snap));
 	}
 
 	@Override
-	public Map<TraceSnap, Collection<MappedAddressRange>> getOpenMappedViews(Program program,
+	public Map<TraceSpan, Collection<MappedAddressRange>> getOpenMappedViews(Program program,
 			AddressSetView set) {
-		InfoPerProgram info = requireTrackedInfo(program);
-		if (info == null) {
-			return null;
+		synchronized (lock) {
+			InfoPerProgram info = requireTrackedInfo(program);
+			if (info == null) {
+				return Map.of();
+			}
+			return info.getOpenMappedViews(set);
 		}
-		return info.getOpenMappedViews(set);
 	}
 
 	@Override
 	public Set<Program> openMappedProgramsInView(Trace trace, AddressSetView set, long snap,
 			Set<Exception> failures) {
-		InfoPerTrace info = requireTrackedInfo(trace);
-		if (info == null) {
-			return null;
+		Set<URL> urls;
+		synchronized (lock) {
+			InfoPerTrace info = requireTrackedInfo(trace);
+			if (info == null) {
+				return null;
+			}
+			urls = info.getMappedProgramURLsInView(set, Range.singleton(snap));
 		}
-		return info.openMappedProgramsInView(set, Range.singleton(snap), failures);
+		Set<Program> result = new HashSet<>();
+		for (URL url : urls) {
+			try {
+				Program program = ProgramURLUtils.openHackedUpGhidraURL(programManager,
+					tool.getProject(), url, ProgramManager.OPEN_VISIBLE);
+				result.add(program);
+			}
+			catch (Exception e) {
+				if (failures == null) {
+					throw e;
+				}
+				failures.add(e);
+			}
+		}
+		return result;
 	}
 
 	protected Collection<? extends Program> orderCurrentFirst(

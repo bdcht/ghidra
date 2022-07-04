@@ -116,9 +116,9 @@ public class DebuggerBreakpointsPluginScreenShots extends GhidraScreenShotGenera
 		mb.createTestProcessesAndThreads();
 
 		TraceRecorder recorder1 = modelService.recordTarget(mb.testProcess1,
-			new TestDebuggerTargetTraceMapper(mb.testProcess1));
+			new TestDebuggerTargetTraceMapper(mb.testProcess1), ActionSource.AUTOMATIC);
 		TraceRecorder recorder3 = modelService.recordTarget(mb.testProcess3,
-			new TestDebuggerTargetTraceMapper(mb.testProcess3));
+			new TestDebuggerTargetTraceMapper(mb.testProcess3), ActionSource.AUTOMATIC);
 		Trace trace1 = recorder1.getTrace();
 		Trace trace3 = recorder3.getTrace();
 
@@ -162,25 +162,27 @@ public class DebuggerBreakpointsPluginScreenShots extends GhidraScreenShotGenera
 		try (UndoableTransaction tid = UndoableTransaction.start(program, "Add breakpoint", true)) {
 			program.getBookmarkManager()
 					.setBookmark(addr(program, 0x00401234),
-						LogicalBreakpoint.BREAKPOINT_ENABLED_BOOKMARK_TYPE, "SW_EXECUTE;1", "");
+						LogicalBreakpoint.BREAKPOINT_ENABLED_BOOKMARK_TYPE, "SW_EXECUTE;1",
+						"before connect");
 			program.getBookmarkManager()
-					.setBookmark(addr(program, 0x00402345),
-						LogicalBreakpoint.BREAKPOINT_DISABLED_BOOKMARK_TYPE, "SW_EXECUTE;1", "");
+					.setBookmark(addr(program, 0x00604321),
+						LogicalBreakpoint.BREAKPOINT_ENABLED_BOOKMARK_TYPE, "WRITE;4",
+						"write version");
 		}
 
 		waitForPass(() -> {
 			Set<LogicalBreakpoint> allBreakpoints = breakpointService.getAllBreakpoints();
-			assertEquals(3, allBreakpoints.size());
+			assertEquals(2, allBreakpoints.size());
 		});
 		waitForPass(() -> {
-			assertFalse(bpt.isEnabled());
+			assertFalse(bpt.isEnabled(0));
 		});
 		/**
 		 * TODO: Might be necessary to debounce and wait for service callbacks to settle. Sometimes,
 		 * there are 3 for just a moment, and then additional callbacks mess things up.
 		 */
 		waitForPass(() -> {
-			assertEquals(3, provider.breakpointTable.getRowCount());
+			assertEquals(2, provider.breakpointTable.getRowCount());
 			assertEquals(3, provider.locationTable.getRowCount());
 		});
 

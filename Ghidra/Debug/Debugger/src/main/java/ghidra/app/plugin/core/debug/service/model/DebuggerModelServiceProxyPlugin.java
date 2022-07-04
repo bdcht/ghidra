@@ -161,6 +161,9 @@ public class DebuggerModelServiceProxyPlugin extends Plugin
 		@Override
 		public void elementAdded(DebuggerObjectModel element) {
 			modelListeners.fire.elementAdded(element);
+			if (currentModel == null) {
+				activateModel(element);
+			}
 		}
 
 		@Override
@@ -250,7 +253,6 @@ public class DebuggerModelServiceProxyPlugin extends Plugin
 				.enabledWhen(ctx -> currentProgram != null)
 				.onAction(this::debugProgramButtonActivated)
 				.onActionStateChanged(this::debugProgramStateActivated)
-				.performActionOnButtonClick(true)
 				.addState(DUMMY_LAUNCH_STATE)
 				.buildAndInstall(tool);
 		actionDisconnectAll = DisconnectAllAction.builder(this, delegate)
@@ -272,7 +274,7 @@ public class DebuggerModelServiceProxyPlugin extends Plugin
 
 	@Override
 	public Stream<DebuggerProgramLaunchOffer> getProgramLaunchOffers(Program program) {
-		return orderOffers(delegate.getProgramLaunchOffers(program), program);
+		return orderOffers(delegate.doGetProgramLaunchOffers(tool, program), program);
 	}
 
 	protected List<String> readMostRecentLaunches(Program program) {
@@ -328,11 +330,11 @@ public class DebuggerModelServiceProxyPlugin extends Plugin
 	}
 
 	private void debugProgram(DebuggerProgramLaunchOffer offer, Program program, boolean prompt) {
-		BackgroundUtils.async(tool, program, offer.getButtonTitle(), true, true, true, (p, m) -> {
-			List<String> mrl = new ArrayList<>(readMostRecentLaunches(program));
-			mrl.remove(offer.getConfigName());
-			mrl.add(offer.getConfigName());
-			writeMostRecentLaunches(program, mrl);
+		BackgroundUtils.asyncModal(tool, offer.getButtonTitle(), true, true, m -> {
+			List<String> recent = new ArrayList<>(readMostRecentLaunches(program));
+			recent.remove(offer.getConfigName());
+			recent.add(offer.getConfigName());
+			writeMostRecentLaunches(program, recent);
 			CompletableFuture.runAsync(() -> {
 				updateActionDebugProgram();
 			}, AsyncUtils.SWING_EXECUTOR).exceptionally(ex -> {
@@ -383,7 +385,7 @@ public class DebuggerModelServiceProxyPlugin extends Plugin
 		List<DebuggerProgramLaunchOffer> offers = program == null ? List.of()
 				: getProgramLaunchOffers(program).collect(Collectors.toList());
 		List<ActionState<DebuggerProgramLaunchOffer>> states = offers.stream()
-				.map(o -> new ActionState<DebuggerProgramLaunchOffer>(o.getButtonTitle(),
+				.map(o -> new ActionState<>(o.getButtonTitle(),
 					o.getIcon(), o))
 				.collect(Collectors.toList());
 		if (!states.isEmpty()) {
@@ -508,9 +510,9 @@ public class DebuggerModelServiceProxyPlugin extends Plugin
 	}
 
 	@Override
-	public TraceRecorder recordTarget(TargetObject target, DebuggerTargetTraceMapper mapper)
-			throws IOException {
-		return delegate.recordTarget(target, mapper);
+	public TraceRecorder recordTarget(TargetObject target, DebuggerTargetTraceMapper mapper,
+			ActionSource source) throws IOException {
+		return delegate.recordTarget(target, mapper, source);
 	}
 
 	@Override
@@ -519,13 +521,8 @@ public class DebuggerModelServiceProxyPlugin extends Plugin
 	}
 
 	@Override
-	public TraceRecorder doRecordTargetPromptOffers(PluginTool t, TargetObject target) {
-		return delegate.doRecordTargetPromptOffers(t, target);
-	}
-
-	@Override
 	public TraceRecorder recordTargetPromptOffers(TargetObject target) {
-		return doRecordTargetPromptOffers(tool, target);
+		return delegate.doRecordTargetPromptOffers(tool, target);
 	}
 
 	@Override

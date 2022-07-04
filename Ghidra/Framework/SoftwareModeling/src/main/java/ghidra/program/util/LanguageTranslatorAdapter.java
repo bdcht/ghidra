@@ -333,8 +333,8 @@ public abstract class LanguageTranslatorAdapter implements LanguageTranslator {
 	}
 
 	protected boolean isSameRegisterConstruction(Register oldReg, Register newReg) {
-		if (oldReg.getLeastSignificatBitInBaseRegister() != newReg
-				.getLeastSignificatBitInBaseRegister() ||
+		if (oldReg.getLeastSignificantBitInBaseRegister() != newReg
+				.getLeastSignificantBitInBaseRegister() ||
 			oldReg.getBitLength() != newReg.getBitLength()) {
 			return false;
 		}
@@ -678,5 +678,15 @@ class TemporaryCompilerSpec implements CompilerSpec {
 	@Override
 	public PcodeInjectLibrary getPcodeInjectLibrary() {
 		return newCompilerSpec.getPcodeInjectLibrary();
+	}
+
+	@Override
+	public void saveXml(StringBuilder buffer) {
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public boolean isEquivalent(CompilerSpec obj) {
+		return (this == obj);
 	}
 }

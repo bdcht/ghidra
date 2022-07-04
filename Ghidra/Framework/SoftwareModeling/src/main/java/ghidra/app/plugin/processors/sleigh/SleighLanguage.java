@@ -904,8 +904,8 @@ public class SleighLanguage implements Language {
 		Endian ldefEndian = description.getEndian();
 		Endian instEndian = description.getInstructionEndian();
 		if (slaEndian != ldefEndian && instEndian == ldefEndian) {
-			throw new SleighException(".ldefs says " + getLanguageID() + " is " +
-				ldefEndian + " but .sla says " + slaEndian);
+			throw new SleighException(".ldefs says " + getLanguageID() + " is " + ldefEndian +
+				" but .sla says " + slaEndian);
 		}
 		uniqueBase = SpecXmlUtils.decodeLong(el.getAttribute("uniqbase"));
 		alignment = SpecXmlUtils.decodeInt(el.getAttribute("align"));
@@ -935,9 +935,9 @@ public class SleighLanguage implements Language {
 		String defname = el.getAttribute("defaultspace");
 		spacetable = new LinkedHashMap<>();
 		// Slot zero is always the constant space
-		AddressSpace constspc = new GenericAddressSpace("const", 64, AddressSpace.TYPE_CONSTANT, 0);
-		spacetable.put("const", constspc);
-		//spacetable.put("OTHER", AddressSpace.OTHER_SPACE);
+		AddressSpace constspc = new GenericAddressSpace(SpaceNames.CONSTANT_SPACE_NAME, 64,
+			AddressSpace.TYPE_CONSTANT, SpaceNames.CONSTANT_SPACE_INDEX);
+		spacetable.put(SpaceNames.CONSTANT_SPACE_NAME, constspc);
 		default_space = null;
 		XmlElement subel = parser.peek();
 		if (subel.getName().equals("space_other")) {	// tag must be present
@@ -1427,7 +1427,6 @@ public class SleighLanguage implements Language {
 		String tag;
 		int delay;
 		boolean physical;
-		boolean global;
 
 		for (AddressSpace element : spclist) {
 			if ((element instanceof OverlayAddressSpace)) {
@@ -1445,25 +1444,21 @@ public class SleighLanguage implements Language {
 					tag = "space";
 					delay = 1;
 					physical = true;
-					global = true;
 					break;
 				case AddressSpace.TYPE_REGISTER:
 					tag = "space";
 					delay = 0;
 					physical = true;
-					global = false;
 					break;
 				case AddressSpace.TYPE_UNIQUE:
 					tag = "space_unique";
 					delay = 0;
 					physical = true;
-					global = false;
 					break;
 				case AddressSpace.TYPE_OTHER:
 					tag = "space_other";
 					delay = 0;
 					physical = true;
-					global = true;
 					break;
 				default:
 					continue;
@@ -1491,7 +1486,6 @@ public class SleighLanguage implements Language {
 			SpecXmlUtils.encodeBooleanAttribute(resBuf, "bigendian", isBigEndian());
 			SpecXmlUtils.encodeSignedIntegerAttribute(resBuf, "delay", delay);
 			SpecXmlUtils.encodeBooleanAttribute(resBuf, "physical", physical);
-			SpecXmlUtils.encodeBooleanAttribute(resBuf, "global", global);
 
 			resBuf.append("/>\n");
 		}

@@ -113,9 +113,10 @@ public class PowerPC_ElfExtension extends ElfExtension {
 				// Update first got entry normally updated by link editor to refer to dynamic table
 				int dynamicOffset =
 					memory.getInt(gotAddr) + (int) elfLoadHelper.getImageBaseWordAdjustmentOffset();
+				elfLoadHelper.addFakeRelocTableEntry(gotAddr, 4);
 				memory.setInt(gotAddr, dynamicOffset);
 			}
-			catch (MemoryAccessException e) {
+			catch (MemoryAccessException | AddressOverflowException e) {
 				elfLoadHelper.log(e);
 			}
 		}
@@ -272,7 +273,7 @@ public class PowerPC_ElfExtension extends ElfExtension {
 		RegisterValue enableVLE = new RegisterValue(vleContextReg, BigInteger.ONE);
 
 		ElfHeader elf = elfLoadHelper.getElfHeader();
-		if (elf.e_shnum() != 0) {
+		if (elf.getSectionHeaderCount() != 0) {
 			// Rely on section headers if present
 			for (ElfSectionHeader section : elf.getSections(
 				ElfSectionHeaderConstants.SHT_PROGBITS)) {
