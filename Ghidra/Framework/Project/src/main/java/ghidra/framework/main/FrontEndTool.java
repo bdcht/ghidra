@@ -27,6 +27,7 @@ import java.util.Set;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
+import org.apache.commons.lang3.StringUtils;
 import org.jdom.Element;
 import org.jdom.JDOMException;
 import org.jdom.input.SAXBuilder;
@@ -108,8 +109,11 @@ public class FrontEndTool extends PluginTool implements OptionsChangeListener {
 	private final static String GHIDRA_MAIN_PANEL_DIVIDER_LOC = "GhidraMainPanelDividerLocation";
 
 	private static final String FRONT_END_TOOL_XML_NAME = "FRONTEND";
+	private static final String VERSION_ATTRIBUTE_NAME = "VERSION";
 	private static final String FRONT_END_FILE_NAME = "FrontEndTool.xml";
 	private static final String CONFIGURE_GROUP = "Configure";
+	private static final File TOOL_FILE =
+		new File(Application.getUserSettingsDirectory(), FRONT_END_FILE_NAME);
 
 	private WeakSet<ProjectListener> listeners;
 	private FrontEndPlugin plugin;
@@ -132,7 +136,7 @@ public class FrontEndTool extends PluginTool implements OptionsChangeListener {
 
 		listeners = WeakDataStructureFactory.createCopyOnWriteWeakSet();
 
-		addFrontEndPlugin();
+		installFrontEndPlugins();
 		createActions();
 		loadToolConfigurationFromDisk();
 
@@ -164,7 +168,7 @@ public class FrontEndTool extends PluginTool implements OptionsChangeListener {
 	@Override
 	public PluginClassManager getPluginClassManager() {
 		if (pluginClassManager == null) {
-			pluginClassManager = new PluginClassManager(FrontEndable.class, null);
+			pluginClassManager = new PluginClassManager(ApplicationLevelPlugin.class, null);
 		}
 		return pluginClassManager;
 	}
@@ -174,46 +178,103 @@ public class FrontEndTool extends PluginTool implements OptionsChangeListener {
 	}
 
 	private void loadToolConfigurationFromDisk() {
-		File saveFile = new File(Application.getUserSettingsDirectory(), FRONT_END_FILE_NAME);
-		if (!saveFile.exists()) {
-			addFrontEndablePlugins();
+
+		Element root = getToolFileXml();
+		if (root == null) {
+			// not file from which to check the version; perform default initialization
+			installDefaultApplicationLevelPlugins();
 			return;
 		}
-		try {
-			InputStream is = new FileInputStream(saveFile);
-			SAXBuilder sax = XmlUtilities.createSecureSAXBuilder(false, false);
 
-			Element root = sax.build(is).getRootElement();
-			GhidraToolTemplate template = new GhidraToolTemplate(
-				(Element) root.getChildren().get(0), saveFile.getAbsolutePath());
-			refresh(template);
+		GhidraToolTemplate template = new GhidraToolTemplate((Element) root.getChildren().get(0),
+			TOOL_FILE.getAbsolutePath());
+		refresh(template);
+	}
+
+	private Element getToolFileXml() {
+		if (!TOOL_FILE.exists()) {
+			return null;
 		}
-		catch (JDOMException e) {
-			Msg.showError(this, null, "Error", "Error in XML reading front end configuration", e);
+
+		try (InputStream is = new FileInputStream(TOOL_FILE)) {
+			SAXBuilder sax = XmlUtilities.createSecureSAXBuilder(false, false);
+			return sax.build(is).getRootElement();
 		}
-		catch (IOException e) {
+		catch (IOException | JDOMException e) {
 			Msg.showError(this, null, "Error", "Error reading front end configuration", e);
 		}
+		return null;
 	}
 
 	void saveToolConfigurationToDisk() {
 		ToolTemplate template = saveToolToToolTemplate();
 		Element root = new Element(FRONT_END_TOOL_XML_NAME);
+
+		String version = Application.getApplicationVersion();
+		root.setAttribute(VERSION_ATTRIBUTE_NAME, version);
 		root.addContent(template.saveToXml());
-		File saveFile = new File(Application.getUserSettingsDirectory(), FRONT_END_FILE_NAME);
-		try {
-			OutputStream os = new FileOutputStream(saveFile);
+		try (OutputStream os = new FileOutputStream(TOOL_FILE)) {
 			org.jdom.Document doc = new org.jdom.Document(root);
 			XMLOutputter xmlOut = new GenericXMLOutputter();
 			xmlOut.output(doc, os);
-			os.close();
 		}
 		catch (IOException e) {
 			Msg.showError(this, null, "Error", "Error saving front end configuration", e);
 		}
 	}
 
-	private void addFrontEndPlugin() {
+	private void installFrontEndPlugins() {
+		installFrontEndPlugin();
+
+		// manually install for old tool versions that have no knowledge of utility plugins
+		if (isPreUtilityGhidraVersion()) {
+			installUtilityPlugins();
+		}
+	}
+
+	private boolean isPreUtilityGhidraVersion() {
+
+		Element root = getToolFileXml();
+		if (root == null) {
+			// not file from which to check the version; return true to allow client to perform
+			// default initialization
+			return true;
+		}
+		String version = root.getAttributeValue(VERSION_ATTRIBUTE_NAME);
+
+		// Note: any version implies the tool is newer than the addition of the 'version'
+		// attribute.  In that case, the utility plugins are managed by the xml.
+		return StringUtils.isBlank(version);
+	}
+
+	/**
+	 * Add those plugins that implement the ApplicationLevelPlugin interface and have a
+	 * RELEASED status and not (example || testing) category.
+	 */
+	private void installDefaultApplicationLevelPlugins() {
+		List<String> classNames = new ArrayList<>();
+		for (Class<? extends Plugin> pluginClass : ClassSearcher.getClasses(Plugin.class,
+			c -> ApplicationLevelPlugin.class.isAssignableFrom(c))) {
+
+			PluginDescription pd = PluginDescription.getPluginDescription(pluginClass);
+			String category = pd.getCategory();
+			boolean isBadCategory = category.equals(GenericPluginCategoryNames.EXAMPLES) ||
+				category.equals(GenericPluginCategoryNames.TESTING);
+			if (pd.getStatus() == PluginStatus.RELEASED && !isBadCategory) {
+				classNames.add(pluginClass.getName());
+			}
+		}
+
+		try {
+			addPlugins(classNames);
+		}
+		catch (PluginException e) {
+			Msg.showError(this, getToolFrame(), "Plugin Error", "Error restoring front-end plugins",
+				e);
+		}
+	}
+
+	private void installFrontEndPlugin() {
 		plugin = new FrontEndPlugin(this);
 		plugin.setProjectManager(getProjectManager());
 		try {
@@ -325,30 +386,33 @@ public class FrontEndTool extends PluginTool implements OptionsChangeListener {
 	 */
 	boolean checkRepositoryConnected(PluginTool tool) {
 		RepositoryAdapter repository = tool.getProject().getRepository();
-		if (repository != null) {
-			if (!repository.verifyConnection()) {
-				if (OptionDialog.showYesNoDialog(tool.getToolFrame(), "Lost Connection to Server",
-					"The connection to the Ghidra Server has been lost.\n" +
-						"Do you want to reconnect now?") == OptionDialog.OPTION_ONE) {
-					try {
-						repository.connect();
-						return true;
-					}
-					catch (NotConnectedException e) {
-						// message displayed by repository server adapter
-						return false;
-					}
-					catch (IOException e) {
-						ClientUtil.handleException(repository, e, "Repository Connection",
-							tool.getToolFrame());
-						return false;
-					}
-				}
+		if (repository == null) {
+			return true;
+		}
 
+		if (repository.verifyConnection()) {
+			return true;
+		}
+
+		if (OptionDialog.showYesNoDialog(tool.getToolFrame(), "Lost Connection to Server",
+			"The connection to the Ghidra Server has been lost.\n" +
+				"Do you want to reconnect now?") == OptionDialog.OPTION_ONE) {
+			try {
+				repository.connect();
+				return true;
+			}
+			catch (NotConnectedException e) {
+				// message displayed by repository server adapter
+				return false;
+			}
+			catch (IOException e) {
+				ClientUtil.handleException(repository, e, "Repository Connection",
+					tool.getToolFrame());
 				return false;
 			}
 		}
-		return true;
+
+		return false;
 	}
 
 	/**
@@ -358,9 +422,7 @@ public class FrontEndTool extends PluginTool implements OptionsChangeListener {
 	 * @param domainFile domain file to check in
 	 */
 	public void checkIn(PluginTool tool, DomainFile domainFile) {
-		ArrayList<DomainFile> list = new ArrayList<>();
-		list.add(domainFile);
-		checkIn(tool, list, tool.getToolFrame());
+		checkIn(tool, List.of(domainFile), tool.getToolFrame());
 	}
 
 	/**
@@ -378,8 +440,7 @@ public class FrontEndTool extends PluginTool implements OptionsChangeListener {
 
 		ArrayList<DomainFile> changedList = new ArrayList<>();
 		ArrayList<DomainFile> list = new ArrayList<>();
-		for (int i = 0; i < fileList.size(); i++) {
-			DomainFile df = fileList.get(i);
+		for (DomainFile df : fileList) {
 			if (df != null && df.canCheckin()) {
 				if (!canCloseDomainFile(df)) {
 					continue;
@@ -447,8 +508,7 @@ public class FrontEndTool extends PluginTool implements OptionsChangeListener {
 
 		ArrayList<DomainFile> list = new ArrayList<>();
 		ArrayList<DomainFile> changedList = new ArrayList<>();
-		for (int i = 0; i < fileList.size(); i++) {
-			DomainFile df = fileList.get(i);
+		for (DomainFile df : fileList) {
 			if (df != null && df.canMerge()) {
 				if (!canCloseDomainFile(df)) {
 					continue;
@@ -531,8 +591,8 @@ public class FrontEndTool extends PluginTool implements OptionsChangeListener {
 		menuData.setMenuSubGroup(CONFIGURE_GROUP + 2);
 		installExtensionsAction.setMenuBarData(menuData);
 
-		installExtensionsAction.setHelpLocation(
-			new HelpLocation(GenericHelpTopics.FRONT_END, "Extensions"));
+		installExtensionsAction
+				.setHelpLocation(new HelpLocation(GenericHelpTopics.FRONT_END, "Extensions"));
 		installExtensionsAction.setEnabled(true);
 		addAction(installExtensionsAction);
 	}
@@ -558,8 +618,8 @@ public class FrontEndTool extends PluginTool implements OptionsChangeListener {
 		menuData.setMenuSubGroup(CONFIGURE_GROUP + 1);
 		configureToolAction.setMenuBarData(menuData);
 
-		configureToolAction.setHelpLocation(
-			new HelpLocation(GenericHelpTopics.FRONT_END, "Configure"));
+		configureToolAction
+				.setHelpLocation(new HelpLocation(GenericHelpTopics.FRONT_END, "Configure"));
 		configureToolAction.setEnabled(true);
 		addAction(configureToolAction);
 	}
@@ -570,8 +630,6 @@ public class FrontEndTool extends PluginTool implements OptionsChangeListener {
 			saveToXml(includeConfigState), getSupportedDataTypes());
 		return toolTemplate;
 	}
-
-	//////////////////////////////////////////////////////////////////////
 
 	/**
 	 * Get project listeners.
@@ -597,50 +655,14 @@ public class FrontEndTool extends PluginTool implements OptionsChangeListener {
 		plugin.readDataState(saveState);
 	}
 
-	////////////////////////////////////////////////////////////////////
-
 	/**
-	 * Add those plugins that implement the FrontEndable interface and have a
-	 * RELEASED status and not (example || testing) category.
-	 */
-	private void addFrontEndablePlugins() {
-		List<String> classNames = new ArrayList<>();
-		for (Class<? extends Plugin> pluginClass : ClassSearcher.getClasses(Plugin.class,
-			c -> FrontEndable.class.isAssignableFrom(c))) {
-
-			PluginDescription pd = PluginDescription.getPluginDescription(pluginClass);
-			String category = pd.getCategory();
-			boolean isBadCategory = category.equals(GenericPluginCategoryNames.EXAMPLES) ||
-				category.equals(GenericPluginCategoryNames.TESTING);
-			if (pd.getStatus() == PluginStatus.RELEASED && !isBadCategory) {
-				classNames.add(pluginClass.getName());
-			}
-		}
-
-		try {
-			addPlugins(classNames.toArray(new String[classNames.size()]));
-		}
-		catch (PluginException e) {
-			Msg.showError(this, getToolFrame(), "Plugin Error", "Error restoring front-end plugins",
-				e);
-		}
-	}
-
-	/**
-	 * Refresh the plugins in the Ghidra Project Window based on what is
-	 * contained in the given XML Element.
+	 * Refresh the plugins in the Ghidra Project Window based on what is contained in the given XML
+	 * Element.
 	 *
-	 * @param tc object that contains an entry for each plugin and its
-	 *            configuration state
+	 * @param tc object that contains an entry for each plugin and its configuration state
 	 */
 	private void refresh(ToolTemplate tc) {
 		listeners = WeakDataStructureFactory.createCopyOnWriteWeakSet();
-		List<Plugin> list = getManagedPlugins();
-		list.remove(plugin);
-		Plugin[] plugins = new Plugin[list.size()];
-		plugins = list.toArray(plugins);
-		removePlugins(plugins);
-
 		Element root = tc.saveToXml();
 		Element elem = root.getChild("TOOL");
 
