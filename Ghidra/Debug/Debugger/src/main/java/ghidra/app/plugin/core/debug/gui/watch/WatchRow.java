@@ -17,6 +17,7 @@ package ghidra.app.plugin.core.debug.gui.watch;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -31,8 +32,8 @@ import ghidra.docking.settings.Settings;
 import ghidra.docking.settings.SettingsImpl;
 import ghidra.framework.options.SaveState;
 import ghidra.pcode.exec.*;
-import ghidra.pcode.exec.trace.DirectBytesTracePcodeExecutorStatePiece;
-import ghidra.pcode.exec.trace.TraceSleighUtils;
+import ghidra.pcode.exec.PcodeExecutorStatePiece.Reason;
+import ghidra.pcode.exec.trace.*;
 import ghidra.pcode.utils.Utils;
 import ghidra.program.model.address.*;
 import ghidra.program.model.data.DataType;
@@ -45,7 +46,7 @@ import ghidra.program.model.mem.MemBuffer;
 import ghidra.program.model.symbol.*;
 import ghidra.program.util.ProgramLocation;
 import ghidra.trace.model.*;
-import ghidra.trace.model.memory.TraceMemorySpace;
+import ghidra.trace.model.guest.TracePlatform;
 import ghidra.trace.model.memory.TraceMemoryState;
 import ghidra.trace.model.symbol.TraceLabelSymbol;
 import ghidra.trace.model.thread.TraceThread;
@@ -63,7 +64,7 @@ public class WatchRow {
 	private SleighLanguage language;
 	private PcodeExecutor<Pair<byte[], TraceMemoryState>> executorWithState;
 	private ReadDepsPcodeExecutor executorWithAddress;
-	private AsyncPcodeExecutor<byte[]> asyncExecutor;
+	private PcodeExecutor<byte[]> asyncExecutor; // name is reminder to use asynchronously
 
 	private String expression;
 	private String typePath;
@@ -75,7 +76,7 @@ public class WatchRow {
 	private TraceMemoryState state;
 	private Address address;
 	private Symbol symbol;
-	private AddressSet reads;
+	private AddressSetView reads;
 	private byte[] value;
 	private byte[] prevValue; // Value at previous coordinates
 	private String valueString;
@@ -117,7 +118,9 @@ public class WatchRow {
 
 	protected void doTargetReads() {
 		if (compiled != null && asyncExecutor != null) {
-			compiled.evaluate(asyncExecutor).exceptionally(ex -> {
+			CompletableFuture<byte[]> asyncEvaluation =
+				CompletableFuture.supplyAsync(() -> compiled.evaluate(asyncExecutor));
+			asyncEvaluation.exceptionally(ex -> {
 				error = ex;
 				Swing.runIfSwingOrRunLater(() -> {
 					provider.watchTableModel.notifyUpdated(this);
@@ -137,12 +140,14 @@ public class WatchRow {
 			Pair<byte[], TraceMemoryState> valueWithState = compiled.evaluate(executorWithState);
 			Pair<byte[], Address> valueWithAddress = compiled.evaluate(executorWithAddress);
 
+			TracePlatform platform = provider.current.getPlatform();
 			value = valueWithState.getLeft();
 			error = null;
 			state = valueWithState.getRight();
-			address = valueWithAddress.getRight();
+			// TODO: Optional column for guest address?
+			address = platform.mapGuestToHost(valueWithAddress.getRight());
 			symbol = computeSymbol();
-			reads = executorWithAddress.getReads();
+			reads = platform.mapGuestToHost(executorWithAddress.getReads());
 
 			valueObj = parseAsDataTypeObj();
 			valueString = parseAsDataTypeStr();
@@ -174,14 +179,16 @@ public class WatchRow {
 			extends DirectBytesTracePcodeExecutorStatePiece {
 		private AddressSet reads = new AddressSet();
 
-		public ReadDepsTraceBytesPcodeExecutorStatePiece(Trace trace, long snap, TraceThread thread,
-				int frame) {
-			super(trace, snap, thread, frame);
+		public ReadDepsTraceBytesPcodeExecutorStatePiece(TracePlatform platform, long snap,
+				TraceThread thread, int frame) {
+			super(DirectBytesTracePcodeExecutorState.getDefaultThreadAccess(platform, snap, thread,
+				frame));
 		}
 
 		@Override
-		public byte[] getVar(AddressSpace space, long offset, int size, boolean quantize) {
-			byte[] data = super.getVar(space, offset, size, quantize);
+		public byte[] getVar(AddressSpace space, long offset, int size, boolean quantize,
+				Reason reason) {
+			byte[] data = super.getVar(space, offset, size, quantize, reason);
 			if (space.isMemorySpace()) {
 				offset = quantizeOffset(space, offset);
 			}
@@ -197,7 +204,7 @@ public class WatchRow {
 		}
 
 		@Override
-		protected void setInSpace(TraceMemorySpace space, long offset, int size, byte[] val) {
+		protected void setInSpace(AddressSpace space, long offset, int size, byte[] val) {
 			throw new UnsupportedOperationException("Expression cannot write to trace");
 		}
 
@@ -217,7 +224,7 @@ public class WatchRow {
 		public ReadDepsPcodeExecutor(ReadDepsTraceBytesPcodeExecutorStatePiece depsState,
 				SleighLanguage language, PairedPcodeArithmetic<byte[], Address> arithmetic,
 				PcodeExecutorState<Pair<byte[], Address>> state) {
-			super(language, arithmetic, state);
+			super(language, arithmetic, state, Reason.INSPECT);
 			this.depsPiece = depsState;
 		}
 
@@ -233,21 +240,32 @@ public class WatchRow {
 		}
 	}
 
+	/**
+	 * Build an executor that can compute three things simultaneously
+	 * 
+	 * <p>
+	 * This computes the concrete value, its address, and the set of physical addresses involved in
+	 * the computation. The resulting pair gives the value and its address. To get the addresses
+	 * involved, invoke {@link ReadDepsPcodeExecutor#getReads()} after evaluation.
+	 * 
+	 * @param coordinates the coordinates providing context for the evaluation
+	 * @return an executor for evaluating the watch
+	 */
 	protected static ReadDepsPcodeExecutor buildAddressDepsExecutor(
 			DebuggerCoordinates coordinates) {
-		Trace trace = coordinates.getTrace();
+		TracePlatform platform = coordinates.getPlatform();
 		ReadDepsTraceBytesPcodeExecutorStatePiece piece =
-			new ReadDepsTraceBytesPcodeExecutorStatePiece(trace, coordinates.getViewSnap(),
+			new ReadDepsTraceBytesPcodeExecutorStatePiece(platform, coordinates.getViewSnap(),
 				coordinates.getThread(), coordinates.getFrame());
-		Language language = trace.getBaseLanguage();
-		if (!(language instanceof SleighLanguage)) {
-			throw new IllegalArgumentException("Watch expressions require a SLEIGH language");
+		Language language = platform.getLanguage();
+		if (!(language instanceof SleighLanguage slang)) {
+			throw new IllegalArgumentException("Watch expressions require a Sleigh language");
 		}
 		PcodeExecutorState<Pair<byte[], Address>> paired = new DefaultPcodeExecutorState<>(piece)
-				.paired(new AddressOfPcodeExecutorStatePiece(language.isBigEndian()));
+				.paired(new AddressOfPcodeExecutorStatePiece(language));
 		PairedPcodeArithmetic<byte[], Address> arithmetic = new PairedPcodeArithmetic<>(
 			BytesPcodeArithmetic.forLanguage(language), AddressOfPcodeArithmetic.INSTANCE);
-		return new ReadDepsPcodeExecutor(piece, (SleighLanguage) language, arithmetic, paired);
+		return new ReadDepsPcodeExecutor(piece, slang, arithmetic, paired);
 	}
 
 	public void setCoordinates(DebuggerCoordinates coordinates) {
@@ -270,7 +288,8 @@ public class WatchRow {
 			recompile();
 		}
 		if (coordinates.isAliveAndReadsPresent()) {
-			asyncExecutor = DebuggerPcodeUtils.executorForCoordinates(coordinates);
+			asyncExecutor =
+				DebuggerPcodeUtils.executorForCoordinates(provider.getTool(), coordinates);
 		}
 		executorWithState = TraceSleighUtils.buildByteWithStateExecutor(trace,
 			coordinates.getViewSnap(), coordinates.getThread(), coordinates.getFrame());
@@ -405,7 +424,12 @@ public class WatchRow {
 		return "{ " + NumericUtilities.convertBytesToString(value, " ") + " }";
 	}
 
-	public AddressSet getReads() {
+	/**
+	 * Get the memory read by the watch, from the host platform perspective
+	 * 
+	 * @return the reads
+	 */
+	public AddressSetView getReads() {
 		return reads;
 	}
 

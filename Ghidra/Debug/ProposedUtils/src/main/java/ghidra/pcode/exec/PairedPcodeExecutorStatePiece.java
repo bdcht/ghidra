@@ -20,6 +20,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import ghidra.pcode.exec.PcodeArithmetic.Purpose;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.address.AddressSpace;
+import ghidra.program.model.lang.Language;
 import ghidra.program.model.mem.MemBuffer;
 
 /**
@@ -71,6 +72,11 @@ public class PairedPcodeExecutorStatePiece<A, L, R>
 	}
 
 	@Override
+	public Language getLanguage() {
+		return left.getLanguage();
+	}
+
+	@Override
 	public PcodeArithmetic<A> getAddressArithmetic() {
 		return addressArithmetic;
 	}
@@ -87,10 +93,11 @@ public class PairedPcodeExecutorStatePiece<A, L, R>
 	}
 
 	@Override
-	public Pair<L, R> getVar(AddressSpace space, A offset, int size, boolean quantize) {
+	public Pair<L, R> getVar(AddressSpace space, A offset, int size, boolean quantize,
+			Reason reason) {
 		return Pair.of(
-			left.getVar(space, offset, size, quantize),
-			right.getVar(space, offset, size, quantize));
+			left.getVar(space, offset, size, quantize, reason),
+			right.getVar(space, offset, size, quantize, reason));
 	}
 
 	@Override

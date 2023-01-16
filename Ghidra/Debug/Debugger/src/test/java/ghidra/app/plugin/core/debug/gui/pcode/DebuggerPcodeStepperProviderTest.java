@@ -36,6 +36,7 @@ import ghidra.app.services.DebuggerEmulationService;
 import ghidra.app.services.DebuggerTraceManagerService;
 import ghidra.pcode.emu.PcodeThread;
 import ghidra.pcode.exec.*;
+import ghidra.pcode.exec.PcodeExecutorStatePiece.Reason;
 import ghidra.pcode.exec.trace.TraceSleighUtils;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Instruction;
@@ -82,7 +83,7 @@ public class DebuggerPcodeStepperProviderTest extends AbstractGhidraHeadedDebugg
 			thread = tb.getOrAddThread("1", 0);
 
 			PcodeExecutor<byte[]> init = TraceSleighUtils.buildByteExecutor(tb.trace, 0, thread, 0);
-			init.executeSleighLine("pc = 0x00400000");
+			init.executeSleigh("pc = 0x00400000;");
 
 			Assembler asm = Assemblers.getAssembler(tb.trace.getFixedProgramView(0));
 			iit = asm.assemble(start,
@@ -166,12 +167,12 @@ public class DebuggerPcodeStepperProviderTest extends AbstractGhidraHeadedDebugg
 				.anyMatch(r -> r.getCode().contains("emu_swi"))));
 	}
 
-	protected List<PcodeRow> format(List<String> sleigh) {
+	protected List<PcodeRow> format(String sleigh) {
 		SleighLanguage language = (SleighLanguage) getToyBE64Language();
 		PcodeProgram prog = SleighProgramCompiler.compileProgram(language, "test", sleigh,
 			PcodeUseropLibrary.nil());
 		PcodeExecutor<byte[]> executor =
-			new PcodeExecutor<>(language, BytesPcodeArithmetic.BIG_ENDIAN, null);
+			new PcodeExecutor<>(language, BytesPcodeArithmetic.BIG_ENDIAN, null, Reason.INSPECT);
 		PcodeFrame frame = executor.begin(prog);
 		PcodeRowHtmlFormatter formatter = pcodeProvider.new PcodeRowHtmlFormatter(language, frame);
 		return formatter.getRows();
@@ -179,7 +180,7 @@ public class DebuggerPcodeStepperProviderTest extends AbstractGhidraHeadedDebugg
 
 	@Test
 	public void testPcodeFormatterSimple() {
-		List<PcodeRow> rows = format(List.of("r0 = 1;"));
+		List<PcodeRow> rows = format("r0 = 1;");
 		assertEquals(2, rows.size());
 		assertEquals("<html></html>", rows.get(0).getLabel());
 		assertEquals(FallthroughPcodeRow.class, rows.get(1).getClass());
@@ -187,9 +188,10 @@ public class DebuggerPcodeStepperProviderTest extends AbstractGhidraHeadedDebugg
 
 	@Test
 	public void testPcodeFormatterStartsLabel() {
-		List<PcodeRow> rows = format(List.of(
-			"<L0> r0 = 1;",
-			"goto <L0>;"));
+		List<PcodeRow> rows = format("""
+				<L0> r0 = 1;
+				goto <L0>;
+				""");
 		assertEquals(3, rows.size());
 		assertEquals("<html><span class=\"lab\">&lt;0&gt;</span></html>", rows.get(0).getLabel());
 		assertEquals("<html></html>", rows.get(1).getLabel());
@@ -198,10 +200,11 @@ public class DebuggerPcodeStepperProviderTest extends AbstractGhidraHeadedDebugg
 
 	@Test
 	public void testPcodeFormatterMiddleLabel() {
-		List<PcodeRow> rows = format(List.of(
-			"if 1:1 goto <SKIP>;",
-			"r0 = 1;",
-			"<SKIP> r1 = 2;"));
+		List<PcodeRow> rows = format("""
+				if 1:1 goto <SKIP>;
+				r0 = 1;
+				<SKIP> r1 = 2;
+				""");
 		assertEquals(4, rows.size());
 		assertEquals("<html></html>", rows.get(0).getLabel());
 		assertEquals("<html></html>", rows.get(1).getLabel());
@@ -211,10 +214,11 @@ public class DebuggerPcodeStepperProviderTest extends AbstractGhidraHeadedDebugg
 
 	@Test
 	public void testPcodeFormatterFallthroughLabel() {
-		List<PcodeRow> rows = format(List.of(
-			"if 1:1 goto <SKIP>;",
-			"r0 = 1;",
-			"<SKIP>"));
+		List<PcodeRow> rows = format("""
+				if 1:1 goto <SKIP>;
+				r0 = 1;
+				<SKIP>
+				""");
 		assertEquals(3, rows.size());
 		assertEquals("<html></html>", rows.get(0).getLabel());
 		assertEquals("<html></html>", rows.get(1).getLabel());
@@ -224,12 +228,13 @@ public class DebuggerPcodeStepperProviderTest extends AbstractGhidraHeadedDebugg
 
 	@Test
 	public void testPcodeFormatterManyLabel() {
-		List<PcodeRow> rows = format(List.of(
-			"<L0> goto <L1>;",
-			"<L1> goto <L2>;",
-			"<L2> goto <L3>;",
-			"goto <L0>;",
-			"<L3>"));
+		List<PcodeRow> rows = format("""
+				<L0> goto <L1>;
+				<L1> goto <L2>;
+				<L2> goto <L3>;
+				goto <L0>;
+				<L3>
+				""");
 		assertEquals(5, rows.size());
 		// NB. templates number labels in order of appearance in BRANCHes
 		assertEquals("<html><span class=\"lab\">&lt;3&gt;</span></html>", rows.get(0).getLabel());
